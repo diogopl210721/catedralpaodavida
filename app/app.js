@@ -1496,8 +1496,9 @@ async function montarHomeMembro() {
   // membros com acesso especial entram no painel pelo item "Administração" do menu (sem senha separada)
   const drawerAdmin = document.getElementById("drawer-admin");
   if (drawerAdmin) {
-    const temAcessoPainel = (m.papeis_especiais || []).length > 0;
-    if (temAcessoPainel) { drawerAdmin.removeAttribute("data-nav"); drawerAdmin.onclick = () => abrirPainelEspecial(m.papeis_especiais || []); }
+    const secoesMembro = secoesEspeciaisDoMembro(m);
+    const temAcessoPainel = secoesMembro.length > 0;
+    if (temAcessoPainel) { drawerAdmin.removeAttribute("data-nav"); drawerAdmin.onclick = () => abrirPainelEspecial(secoesMembro); }
     else { drawerAdmin.setAttribute("data-nav", "tela-admin-login"); drawerAdmin.onclick = null; }
   }
 
@@ -5111,6 +5112,16 @@ async function buscarDiretorio(termo) {
 async function carregarAlbuns() {
   document.getElementById("fotos-voltar").onclick = () => mostrarTela(state.membro ? "tela-membro-home" : "tela-visitante");
   document.getElementById("btn-ver-minhas-fotos").style.display = state.membro ? "block" : "none";
+  let btnPub = document.getElementById("btn-publicar-fotos");
+  if (!btnPub) {
+    btnPub = document.createElement("button");
+    btnPub.id = "btn-publicar-fotos"; btnPub.className = "btn btn-primario"; btnPub.type = "button";
+    btnPub.style.cssText = "margin-bottom:12px;width:100%;background:var(--trigo,#D9A441);color:#14110E;border:none;font-weight:800";
+    btnPub.textContent = "📷 Publicar fotos / criar álbum";
+    btnPub.onclick = () => { abrirPainelEspecial(secoesEspeciaisDoMembro(state.membro)); abrirSecaoAdmin("fotos"); };
+    const ref = document.getElementById("btn-ver-minhas-fotos"); ref.parentNode.insertBefore(btnPub, ref);
+  }
+  btnPub.style.display = state.membro && podePublicarFotos() ? "block" : "none";
   const { data } = await sb.from("igr_fotos_albuns").select("*").eq("igreja_id", state.igreja.id).order("created_at", { ascending: false });
   state.albunsPublicoCache = data || [];
   const el = document.getElementById("lista-albuns");
@@ -6581,7 +6592,7 @@ async function carregarPainelAdmin() {
         <label class="interesse-item"><input type="checkbox" value="editar_grupo" checked> Editar capa/descrição</label>
         <label class="interesse-item"><input type="checkbox" value="postar_avisos" checked> Postar avisos</label>
         <label class="interesse-item"><input type="checkbox" value="gerenciar_oracao" checked> Ver pedidos de oração</label>
-        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label>
+        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label><label class="interesse-item"><input type="checkbox" value="gerenciar_fotos"> Publicar fotos (Mídia)</label>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn btn-primary" style="width:auto;padding:9px 16px;font-size:12.5px;" data-acao="aprovar" data-id="${m.id}">Aprovar</button>
@@ -6706,6 +6717,7 @@ async function carregarLideresAtivos() {
           <label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato" ${(m.permissoes || []).includes("gerenciar_diaconato") ? "checked" : ""}> Montar escalas do Diaconato</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes" ${(m.permissoes || []).includes("gerenciar_reunioes") ? "checked" : ""}> Registrar reuniões</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas" ${(m.permissoes || []).includes("gerenciar_ofertas") ? "checked" : ""}> Configurar ofertas</label>
+          <label class="interesse-item"><input type="checkbox" value="gerenciar_fotos" ${(m.permissoes || []).includes("gerenciar_fotos") ? "checked" : ""}> Publicar fotos (Mídia)</label>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" style="flex:1;" data-salvar-lider="${m.id}">Salvar</button>
@@ -7239,6 +7251,14 @@ function montarGridAdmin() {
 
 // entrada de acesso especial pro MEMBRO (sem senha separada — usa o proprio login dele),
 // so enxerga as secoes especificas que o admin master concedeu
+// seções do painel liberadas para o membro: acessos especiais + permissões de líder que abrem uma seção
+function secoesEspeciaisDoMembro(m) {
+  const s = new Set((m && m.papeis_especiais) || []);
+  if (m && m.eh_lider && (m.permissoes || []).includes("gerenciar_fotos")) s.add("fotos");
+  return [...s];
+}
+function podePublicarFotos() { return secoesEspeciaisDoMembro(state.membro).includes("fotos"); }
+
 function abrirPainelEspecial(secoes) {
   state.adminPapel = "custom";
   state.adminSecoes = secoes || [];
