@@ -1445,6 +1445,8 @@ function atualizarVisibilidadeLouvor() {
   const grupoIds = state.membro?.grupoIds || (state.membro?.grupo_id ? [state.membro.grupo_id] : []);
   const grupoLouvor = state.grupos.find(g => grupoIds.includes(g.id) && /louvor/i.test(g.nome || ""));
   if (state.membro) state.membro.grupoLouvorId = grupoLouvor?.id || null;
+  const grupoDanca = state.grupos.find(g => grupoIds.includes(g.id) && MINISTERIOS.danca.re.test(g.nome || ""));
+  if (state.membro) state.membro.grupoDancaId = grupoDanca?.id || null;
   document.querySelectorAll("[data-louvor-only]").forEach(el => {
     el.style.display = grupoLouvor ? "flex" : "none";
   });
@@ -5321,14 +5323,37 @@ function abrirLightboxImagemUnica(url) {
 // ---------- ministério de louvor ----------
 const DIA_SEMANA_NOMES_LOUVOR = { domingo: "Domingo", segunda: "Segunda", terca: "Terça", quarta: "Quarta", quinta: "Quinta", sexta: "Sexta", sabado: "Sábado" };
 
+// o mesmo módulo serve o Louvor e a Dança: muda só o grupo, o nome e a permissão de líder
+const MINISTERIOS = {
+  louvor: { re: /louvor/i, nome: "Louvor", titulo: "Ministério de Louvor", perm: "gerenciar_louvor", sub: "Escalas, repertório e confirmações do ministério." },
+  danca: { re: /dan[cç]a/i, nome: "Dança", titulo: "Ministério de Dança", perm: "gerenciar_danca", sub: "Escalas de quem vai dançar, músicas para ensaiar e confirmações." },
+};
+function ministerioAtual() { return MINISTERIOS[state.ministerio] || MINISTERIOS.louvor; }
+
 function souLiderLouvor() {
-  return !!(state.adminNome || (state.membro?.eh_lider && (state.membro?.permissoes || []).includes("gerenciar_louvor")));
+  return !!(state.adminNome || (state.membro?.eh_lider && (state.membro?.permissoes || []).includes(ministerioAtual().perm)));
+}
+
+function abrirMinisterioDanca() {
+  state.ministerio = "danca";
+  state.louvorAdminGrupoId = null;
+  if (!state.adminNome && !state.membro?.grupoDancaId) {
+    const g = (state.grupos || []).find(x => MINISTERIOS.danca.re.test(x.nome || ""));
+    // líder da dança que não está no grupo também entra
+    if (g && souLiderLouvor()) state.louvorAdminGrupoId = g.id;
+  }
+  if (state.adminNome && !state.louvorAdminGrupoId) {
+    const g = (state.grupos || []).find(x => MINISTERIOS.danca.re.test(x.nome || ""));
+    if (g) state.louvorAdminGrupoId = g.id;
+  }
+  mostrarTela("tela-membro-louvor");
+  carregarLouvor();
 }
 
 // admin pode gerenciar o Louvor sem precisar logar como membro - usa esse "grupo ativo" em vez do
 // grupo do membro, sem nunca mexer em state.membro (foi isso que causou instabilidade da vez passada)
 function grupoLouvorAtivo() {
-  return state.louvorAdminGrupoId || state.membro?.grupoLouvorId;
+  return state.louvorAdminGrupoId || (state.ministerio === "danca" ? state.membro?.grupoDancaId : state.membro?.grupoLouvorId);
 }
 
 // pega todo mundo do grupo de Louvor, incluindo quem tem Louvor como grupo adicional (nao so principal)
@@ -5348,9 +5373,11 @@ async function membrosDoGrupoLouvor() {
   return membros.sort((a, b) => (a.nome_completo || "").localeCompare(b.nome_completo || ""));
 }
 
-function entrarLouvorComoAdmin() {
-  const grupoLouvor = (state.grupos || []).find(g => /louvor/i.test(g.nome || ""));
-  if (!grupoLouvor) { alert("Não encontrei nenhum grupo chamado \"Louvor\" cadastrado ainda. Crie um grupo com esse nome primeiro."); return; }
+function entrarLouvorComoAdmin(min) {
+  state.ministerio = min === "danca" ? "danca" : "louvor";
+  const M = ministerioAtual();
+  const grupoLouvor = (state.grupos || []).find(g => M.re.test(g.nome || ""));
+  if (!grupoLouvor) { alert(`Não encontrei nenhum grupo chamado "${M.nome}" cadastrado ainda. Crie um grupo com esse nome primeiro.`); return; }
   state.louvorAdminGrupoId = grupoLouvor.id;
   mostrarTela("tela-membro-louvor");
   carregarLouvor();
@@ -5362,7 +5389,12 @@ function sairLouvorAdmin() {
 }
 
 async function carregarLouvor() {
-  const emModoAdmin = !!state.louvorAdminGrupoId;
+  const M = ministerioAtual();
+  const tituloEl = document.querySelector("#tela-membro-louvor .scroll > span");
+  if (tituloEl) tituloEl.textContent = M.titulo;
+  const subEl = tituloEl?.nextElementSibling; if (subEl && subEl.classList.contains("hint")) subEl.textContent = M.sub;
+  document.documentElement.dataset.ministerio = state.ministerio === "danca" ? "danca" : "louvor";
+  const emModoAdmin = !!state.louvorAdminGrupoId && !!state.adminNome;
   document.getElementById("louvor-banner-admin").style.display = emModoAdmin ? "block" : "none";
   document.getElementById("louvor-hub-voltar").dataset.nav = emModoAdmin ? "tela-admin-painel" : "tela-membro-home";
   const podeGerenciar = souLiderLouvor();
@@ -5381,8 +5413,10 @@ async function carregarLouvor() {
     const { data: minhas } = await sb.from("igr_louvor_escala_participantes").select("escala_id, status").eq("membro_id", state.membro.id);
     const idsEscalas = [...new Set((minhas || []).map(p => p.escala_id))];
     if (idsEscalas.length) {
-      const { data } = await sb.from("igr_louvor_escalas").select("*").in("id", idsEscalas)
-        .gte("data", hoje).eq("publicada", true).order("data", { ascending: true });
+      let qm = sb.from("igr_louvor_escalas").select("*").in("id", idsEscalas)
+        .gte("data", hoje).eq("publicada", true);
+      if (grupoLouvorAtivo()) qm = qm.eq("grupo_id", grupoLouvorAtivo());
+      const { data } = await qm.order("data", { ascending: true });
       escalas = data || [];
     }
   }
@@ -5406,8 +5440,9 @@ async function carregarMinhasEstatisticasLouvor() {
   const dataHoje = isoLocal(hoje);
 
   const { data } = await sb.from("igr_louvor_escala_participantes")
-    .select("status, igr_louvor_escalas!inner(data)")
+    .select("status, igr_louvor_escalas!inner(data, grupo_id)")
     .eq("membro_id", state.membro.id).eq("status", "confirmado")
+    .eq("igr_louvor_escalas.grupo_id", grupoLouvorAtivo() || "00000000-0000-0000-0000-000000000000")
     .lte("igr_louvor_escalas.data", dataHoje).gte("igr_louvor_escalas.data", inicioAno);
 
   const tocouNoMes = (data || []).filter(p => p.igr_louvor_escalas.data >= inicioMes).length;
@@ -5417,11 +5452,11 @@ async function carregarMinhasEstatisticasLouvor() {
     <div class="card" style="display:flex;gap:0;">
       <div style="flex:1;text-align:center;border-right:1px solid var(--line);">
         <div style="font-size:22px;font-weight:700;">${tocouNoMes}</div>
-        <p class="hint" style="margin:2px 0 0;">Você tocou esse mês</p>
+        <p class="hint" style="margin:2px 0 0;">${state.ministerio === "danca" ? "Você dançou" : "Você tocou"} esse mês</p>
       </div>
       <div style="flex:1;text-align:center;">
         <div style="font-size:22px;font-weight:700;">${tocouNoAno}</div>
-        <p class="hint" style="margin:2px 0 0;">Você tocou esse ano</p>
+        <p class="hint" style="margin:2px 0 0;">${state.ministerio === "danca" ? "Você dançou" : "Você tocou"} esse ano</p>
       </div>
     </div>
   `;
@@ -6592,7 +6627,7 @@ async function carregarPainelAdmin() {
         <label class="interesse-item"><input type="checkbox" value="editar_grupo" checked> Editar capa/descrição</label>
         <label class="interesse-item"><input type="checkbox" value="postar_avisos" checked> Postar avisos</label>
         <label class="interesse-item"><input type="checkbox" value="gerenciar_oracao" checked> Ver pedidos de oração</label>
-        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label><label class="interesse-item"><input type="checkbox" value="gerenciar_fotos"> Publicar fotos (Mídia)</label>
+        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_danca"> Gerenciar Dança</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label><label class="interesse-item"><input type="checkbox" value="gerenciar_fotos"> Publicar fotos (Mídia)</label>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn btn-primary" style="width:auto;padding:9px 16px;font-size:12.5px;" data-acao="aprovar" data-id="${m.id}">Aprovar</button>
@@ -6687,7 +6722,7 @@ async function promoverMembroALider() {
 
 const LABELS_PERMISSOES = {
   editar_grupo: "Editar grupo", postar_avisos: "Postar avisos",
-  gerenciar_oracao: "Ver oração", gerenciar_louvor: "Gerenciar Louvor", gerenciar_diaconato: "Escalas do Diaconato", gerenciar_reunioes: "Reuniões", gerenciar_ofertas: "Ofertas",
+  gerenciar_oracao: "Ver oração", gerenciar_louvor: "Gerenciar Louvor", gerenciar_danca: "Gerenciar Dança", gerenciar_diaconato: "Escalas do Diaconato", gerenciar_reunioes: "Reuniões", gerenciar_ofertas: "Ofertas",
 };
 
 async function carregarLideresAtivos() {
@@ -6714,6 +6749,7 @@ async function carregarLideresAtivos() {
           <label class="interesse-item"><input type="checkbox" value="postar_avisos" ${(m.permissoes || []).includes("postar_avisos") ? "checked" : ""}> Postar avisos</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_oracao" ${(m.permissoes || []).includes("gerenciar_oracao") ? "checked" : ""}> Ver pedidos de oração</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor" ${(m.permissoes || []).includes("gerenciar_louvor") ? "checked" : ""}> Gerenciar Louvor</label>
+          <label class="interesse-item"><input type="checkbox" value="gerenciar_danca" ${(m.permissoes || []).includes("gerenciar_danca") ? "checked" : ""}> Gerenciar Dança</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato" ${(m.permissoes || []).includes("gerenciar_diaconato") ? "checked" : ""}> Montar escalas do Diaconato</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes" ${(m.permissoes || []).includes("gerenciar_reunioes") ? "checked" : ""}> Registrar reuniões</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas" ${(m.permissoes || []).includes("gerenciar_ofertas") ? "checked" : ""}> Configurar ofertas</label>
@@ -8742,7 +8778,8 @@ async function iniciar() {
   document.getElementById("btn-admin-novo-evento")?.addEventListener("click", () => abrirFormEvento(null));
   document.getElementById("form-evento")?.addEventListener("submit", enviarFormEvento);
   document.getElementById("btn-ev-ler-banner")?.addEventListener("click", lerBannerComIA);
-  document.getElementById("admin-card-louvor")?.addEventListener("click", entrarLouvorComoAdmin);
+  document.getElementById("admin-card-louvor")?.addEventListener("click", () => entrarLouvorComoAdmin("louvor"));
+  document.getElementById("admin-card-danca")?.addEventListener("click", () => entrarLouvorComoAdmin("danca"));
   document.getElementById("btn-sair-louvor-admin")?.addEventListener("click", sairLouvorAdmin);
   configurarBuscaOrganizadorEvento();
   configurarBuscaIndicadorVisitante();

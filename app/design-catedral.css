@@ -602,3 +602,6 @@ html[data-tela="tela-chat"] #tela-chat .scroll{ padding-bottom:16px!important; }
 #chat-input-texto{ min-width:0; }
 #form-chat-enviar .btn{ flex:none; }
 #chat-mensagens > div[style*="flex-end"]{ background:var(--trigo)!important; color:#1B140C!important; border-color:transparent!important; }
+
+/* Dança usa o módulo do Louvor, sem o botão do VS */
+html[data-ministerio="danca"] #tela-membro-louvor .cpv-vs{display:none}

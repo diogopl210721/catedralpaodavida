@@ -493,6 +493,7 @@ gl_FragColor=vec4(col,1.);}`;
     t.className = "screen cpv-layout"; t.id = "tela-cpv-servir";
     const areas = [
       { chave: "louvor", cor: "var(--s-pomba)", tit: "Louvor", sub: "Escalas, repertório e ensaios", nav: "tela-membro-louvor", ic: "c-musica" },
+      { chave: "danca", cor: "var(--s-coroa)", tit: "Dança", sub: "Escalas, músicas para ensaiar e confirmações", danca: true, ic: "c-servir" },
       { chave: "vs", cor: "var(--s-pomba)", tit: "VS · DDS MultiTrack", sub: "Abrir as faixas pro culto", link: "https://www.ddsinovacao.com.br/vs", ic: "c-aovivo" },
       { chave: "diaconato", cor: "var(--s-calice)", tit: "Diaconato", sub: "Escala dos cultos, Santa Ceia e portaria", ir: "tela-cpv-diaconato", ic: "c-calice" },
       { chave: "reunioes", cor: "var(--s-coroa)", tit: "Reuniões", sub: "Líderes, ministérios e pastores", ir: "tela-cpv-reunioes", ic: "c-coroa" },
@@ -504,7 +505,7 @@ gl_FragColor=vec4(col,1.);}`;
       <p class="cpv-intro-tx">Tudo do seu ministério num lugar só: a próxima escala, o que ensaiar e as reuniões.</p>
       <div class="cpv-servir">
         ${areas.map(a => {
-          const attr = a.link ? `href="${a.link}" target="_blank" rel="noopener"` : a.ir ? `data-cpv-ir="${a.ir}"` : `data-nav="${a.nav}"`;
+          const attr = a.link ? `href="${a.link}" target="_blank" rel="noopener"` : a.danca ? `data-cpv-danca` : a.ir ? `data-cpv-ir="${a.ir}"` : `data-nav="${a.nav}"`;
           const tag = a.link ? "a" : "button";
           return `<${tag} ${tag === "button" ? 'type="button"' : ""} class="cpv-area" data-area="${a.chave}" style="--cor:${a.cor}" ${attr}>
           <span class="cpv-area-ic">${ci(a.ic)}</span>
@@ -512,6 +513,9 @@ gl_FragColor=vec4(col,1.);}`;
       </div>
     </div>`;
     ref.after(t);
+    // Louvor e Dança usam o mesmo módulo: o card diz qual ministério abrir
+    t.querySelector('[data-area="louvor"]')?.addEventListener("click", () => { try { state.ministerio = "louvor"; state.louvorAdminGrupoId = null; } catch (e) {} }, true);
+    t.querySelector("[data-cpv-danca]")?.addEventListener("click", () => { if (typeof abrirMinisterioDanca === "function") abrirMinisterioDanca(); });
   }
 
   /* ============ 7) Barra superior com a logo original ============ */

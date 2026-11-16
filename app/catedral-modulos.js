@@ -544,19 +544,25 @@
     const h = hoje();
     const [diac, louv] = await Promise.all([
       sb.from("igr_diac_itens").select("id, status, funcao:igr_diac_funcoes(nome), escala:igr_diac_escalas!inner(data, horario, titulo, igreja_id)").eq("membro_id", m().id).gte("escala.data", h).eq("escala.igreja_id", state.igreja.id),
-      sb.from("igr_louvor_escala_participantes").select("id, status, escala:igr_louvor_escalas!inner(data, horario, titulo, publicada)").eq("membro_id", m().id).gte("escala.data", h).eq("escala.publicada", true),
+      sb.from("igr_louvor_escala_participantes").select("id, status, escala:igr_louvor_escalas!inner(data, horario, titulo, publicada, grupo_id)").eq("membro_id", m().id).gte("escala.data", h).eq("escala.publicada", true),
     ]);
     const itens = [
       ...((diac.data || []).map(i => ({ area: "Diaconato", cor: "var(--s-calice)", ic: "c-calice", tela: "tela-cpv-diaconato", funcao: i.funcao?.nome, ...i.escala, status: i.status }))),
-      ...((louv.data || []).map(i => ({ area: "Louvor", cor: "var(--s-pomba)", ic: "c-musica", tela: "tela-membro-louvor", funcao: null, ...i.escala, status: i.status }))),
+      ...((louv.data || []).map(i => {
+        const g = (state.grupos || []).find(x => x.id === i.escala?.grupo_id);
+        const danca = /dan[cç]a/i.test(g?.nome || "");
+        return { area: danca ? "Dança" : "Louvor", danca, cor: danca ? "var(--s-coroa)" : "var(--s-pomba)", ic: danca ? "c-servir" : "c-musica", tela: "tela-membro-louvor", funcao: null, ...i.escala, status: i.status };
+      })),
     ].sort((a, b) => a.data.localeCompare(b.data)).slice(0, 3);
     if (!itens.length) { box.innerHTML = ""; return; }
     box.innerHTML = `<h2 class="cpv-sec">Você serve</h2><div class="cpv-serve-lista">${itens.map(i => `
-      <button type="button" class="cpv-serve" style="--cor:${i.cor}" ${i.tela === "tela-cpv-diaconato" ? `data-cpv-ir="${i.tela}"` : `data-nav="${i.tela}"`}>
+      <button type="button" class="cpv-serve" style="--cor:${i.cor}" ${i.tela === "tela-cpv-diaconato" ? `data-cpv-ir="${i.tela}"` : i.danca ? `data-cpv-danca` : `data-nav="${i.tela}"`} ${!i.danca && i.tela === "tela-membro-louvor" ? "data-cpv-louvor" : ""}>
         <span class="cpv-area-ic">${ci(i.ic)}</span>
         <span class="cpv-serve-tx"><b>${esc(i.area)}${i.funcao ? ` · ${esc(i.funcao)}` : ""}</b><small>${dataCurta(i.data)}${i.horario ? " · " + esc(String(i.horario).slice(0, 5)) : ""}</small></span>
         ${i.status === "pendente" ? `<em class="cpv-pilula agendada">Confirmar</em>` : i.status === "confirmado" ? `<em class="cpv-pilula boa">Confirmado</em>` : ""}
       </button>`).join("")}</div>`;
+    box.querySelectorAll("[data-cpv-danca]").forEach(b => b.addEventListener("click", () => window.abrirMinisterioDanca && window.abrirMinisterioDanca()));
+    box.querySelectorAll("[data-cpv-louvor]").forEach(b => b.addEventListener("click", () => { state.ministerio = "louvor"; state.louvorAdminGrupoId = null; }, true));
   }
   window.cpvServe = cpvServe;
 
@@ -586,6 +592,8 @@
   function ajustarServir() {
     const r = $('#tela-cpv-servir [data-area="reunioes"]');
     if (r) r.hidden = !liderReunioes();
+    const d = $('#tela-cpv-servir [data-area="danca"]');
+    if (d) { const mm = m(); d.hidden = !(mm && (mm.grupoDancaId || (mm.permissoes || []).includes("gerenciar_danca"))); }
   }
 
   function iniciar() {
