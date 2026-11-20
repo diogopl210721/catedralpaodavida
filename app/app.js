@@ -3488,7 +3488,7 @@ async function arquivoUrlParaBase64(url) {
 
 // ---------- biblioteca de livros (leitura só dentro do app, sem baixar) ----------
 if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("vendor/pdf.worker.min.js", location.href).href;
 }
 
 function normalizarBusca(s) {
@@ -3605,6 +3605,14 @@ async function abrirLeituraLivro(livroId) {
   }
 
   await renderizarPaginaLivro();
+  dicaFolhear();
+}
+
+function dicaFolhear() {
+  try { if (localStorage.getItem("dica_folhear")) return; localStorage.setItem("dica_folhear", "1"); } catch (e) {}
+  const tela = document.getElementById("tela-leitura-livro"); if (!tela) return;
+  const d = document.createElement("div"); d.className = "leitura-dica"; d.textContent = "👉 Arraste pro lado para virar a página";
+  tela.appendChild(d); setTimeout(() => { d.style.opacity = "0"; setTimeout(() => d.remove(), 600); }, 2600);
 }
 
 // ---------- sistema de pontos (gamificacao) ----------
@@ -3748,8 +3756,40 @@ function mudarPaginaLivro(delta) {
   const nova = st.paginaAtual + delta;
   if (nova < 1 || nova > st.totalPaginas) return;
   st.paginaAtual = nova;
-  renderizarPaginaLivro();
+  const cv = document.getElementById("leitura-canvas");
+  const wrap = document.getElementById("leitura-canvas-wrap");
+  if (cv) { cv.classList.add(delta > 0 ? "vira-prox" : "vira-ant"); }
+  setTimeout(async () => {
+    await renderizarPaginaLivro();
+    if (wrap) wrap.scrollTop = 0;
+    if (cv) { cv.classList.remove("vira-prox", "vira-ant"); }
+  }, 180);
 }
+
+// folhear com o dedo: arrastar pro lado passa a página (quando não está com zoom)
+(function ligarFolhearLivro() {
+  const wrap = document.getElementById("leitura-canvas-wrap");
+  if (!wrap || wrap.dataset.folhear) return;
+  wrap.dataset.folhear = "1";
+  let x0 = null, y0 = null, t0 = 0;
+  wrap.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+  }, { passive: true });
+  wrap.addEventListener("touchend", e => {
+    if (x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    const comZoom = wrap.scrollWidth > wrap.clientWidth + 4;
+    if (comZoom || Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.8 || Date.now() - t0 > 800) return;
+    mudarPaginaLivro(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  document.addEventListener("keydown", e => {
+    if (!state.leituraAtual || document.querySelector(".screen.active")?.id !== "tela-leitura-livro") return;
+    if (e.key === "ArrowRight") mudarPaginaLivro(1);
+    if (e.key === "ArrowLeft") mudarPaginaLivro(-1);
+  });
+})();
 
 function sairDaLeitura() {
   const st = state.leituraAtual;
