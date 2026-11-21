@@ -102,7 +102,7 @@
         <div id="ct-palco"><p class="ct-carregando">Gerando sua carteirinha…</p></div>
         <div class="ct-acoes">
           <button type="button" class="cpv-btn ouro" id="ct-png">Baixar PNG</button>
-          <button type="button" class="cpv-btn" id="ct-pdf">Baixar PDF</button>
+          <button type="button" class="cpv-btn linha" id="ct-pdf">Baixar PDF</button>
         </div>
         <p class="ct-dica">O PDF sai no tamanho de cartão (8,6 × 5,4 cm), frente e verso, pronto para imprimir e plastificar. Para mudar algum dado, atualize o seu perfil.</p>
       </div>`;
@@ -154,14 +154,38 @@
   }
   function nomeArquivo(ext) { return `carteirinha-${String(state.membro?.nome_completo || "membro").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.${ext}`; }
   function avisar(msg) { if (typeof mostrarToast === "function") mostrarToast(msg); }
+  // No celular (principalmente iPhone), o compartilhar só funciona dentro do toque da pessoa.
+  // Como gerar leva alguns segundos, mostramos uma folha "pronto" e o toque em Salvar abre o compartilhar.
+  const movel = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function baixarDireto(blob, nome) {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
   async function entregar(blob, nome, tipo) {
     const arq = new File([blob], nome, { type: tipo });
-    if (navigator.canShare && navigator.canShare({ files: [arq] }) && /iphone|ipad|android/i.test(navigator.userAgent)) {
-      try { await navigator.share({ files: [arq], title: "Minha carteirinha" }); return; } catch (e) { if (e.name === "AbortError") return; }
-    }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    const podeCompartilhar = !!(navigator.canShare && navigator.canShare({ files: [arq] }));
+    if (!movel) { baixarDireto(blob, nome); return; }
+    const url = URL.createObjectURL(blob);
+    const ehImg = tipo.startsWith("image/"), ehPdf = tipo === "application/pdf";
+    const f = document.createElement("div"); f.className = "ct-pronto"; f.setAttribute("role", "dialog"); f.setAttribute("aria-modal", "true");
+    f.innerHTML = `<div class="ct-pronto-c">
+        <b>${ehImg ? "Sua carteirinha está pronta" : /^frequencia/.test(nome) ? (ehPdf ? "Relatório pronto" : "Planilha pronta") : "PDF da carteirinha pronto"}</b>
+        ${ehImg ? `<img src="${url}" alt="Carteirinha"><small>Toque em Salvar e escolha “Salvar imagem”. Se preferir, toque e segure a imagem.</small>`
+                : `<div class="ct-pronto-pdf">${ehPdf ? "PDF" : "CSV"}</div><small>Toque em Salvar e escolha “Salvar em Arquivos” ou mande pelo WhatsApp.</small>`}
+        <button type="button" class="cpv-btn ouro" data-ct-salvar>Salvar</button>
+        ${ehPdf ? `<a class="cpv-btn linha" href="${url}" target="_blank" rel="noopener">Abrir o PDF</a>` : ""}
+        <button type="button" class="ct-pronto-x" data-ct-fechar>Fechar</button>
+      </div>`;
+    document.body.appendChild(f);
+    const fechar = () => { f.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); };
+    f.addEventListener("click", e => { if (e.target === f || e.target.closest("[data-ct-fechar]")) fechar(); });
+    f.querySelector("[data-ct-salvar]").addEventListener("click", () => {
+      if (podeCompartilhar) {
+        navigator.share({ files: [arq], title: nome }).then(fechar).catch(e => { if (e && e.name !== "AbortError") baixarDireto(blob, nome); });
+      } else baixarDireto(blob, nome);
+    });
   }
+  window.cpvEntregarArquivo = entregar;
   async function baixarPNG() {
     const b = $("#ct-png"); b.disabled = true; b.textContent = "Gerando…";
     try {

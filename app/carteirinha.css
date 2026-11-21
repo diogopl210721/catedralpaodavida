@@ -62,3 +62,13 @@
 .cpv-eu-cart b{display:block;font-size:16px}
 .cpv-eu-cart small{opacity:.7;font-size:13px}
 .cpv-eu-cart span.i{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:#D9A441;color:#14110E;font-size:22px;flex:none}
+
+/* folha "pronto" para salvar no celular */
+.ct-pronto{ position:fixed; inset:0; z-index:100001; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.6); }
+.ct-pronto-c{ width:100%; max-width:520px; max-height:92dvh; overflow:auto; display:flex; flex-direction:column; gap:10px; padding:20px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; background:#1B1612; color:#F3E7D3; }
+.ct-pronto-c b{ font:600 22px/1.2 'Cormorant Garamond',Georgia,serif; }
+.ct-pronto-c img{ width:100%; border-radius:14px; -webkit-touch-callout:default; user-select:auto; }
+.ct-pronto-c small{ font:500 13px/1.45 Figtree,system-ui,sans-serif; color:rgba(243,231,211,.7); }
+.ct-pronto-c .cpv-btn{ width:100%; text-align:center; text-decoration:none; justify-content:center; }
+.ct-pronto-pdf{ align-self:center; width:96px; height:120px; border-radius:12px; display:grid; place-items:center; background:linear-gradient(160deg,#F1CF86,#B07A1E); color:#1B140C; font:800 22px Figtree,system-ui,sans-serif; letter-spacing:.06em; }
+.ct-pronto-x{ border:0; background:none; color:rgba(243,231,211,.7); font:600 14px Figtree,system-ui,sans-serif; padding:8px; cursor:pointer; }

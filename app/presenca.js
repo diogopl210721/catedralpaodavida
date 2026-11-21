@@ -473,7 +473,8 @@
       u.resD.forEach(x => L.push([x.g.nome, "Departamento", x.n, x.v, pc(x.fr)]));
     }
     const csv = "﻿" + L.map(l => l.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
-    salvar(new Blob([csv], { type: "text/csv;charset=utf-8" }), nomeArq("csv"));
+    const blobCsv = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    if (window.cpvEntregarArquivo) window.cpvEntregarArquivo(blobCsv, nomeArq("csv"), "text/csv"); else salvar(blobCsv, nomeArq("csv"));
   }
 
   function carregarImg(src) {
@@ -620,11 +621,7 @@
         pdf.text(`${p} / ${tp}`, W - M, H - 7.5, { align: "right" });
       }
       const blob = pdf.output("blob"), nome = nomeArq("pdf");
-      const arq = typeof File === "function" ? new File([blob], nome, { type: "application/pdf" }) : null;
-      if (arq && navigator.canShare && navigator.canShare({ files: [arq] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        try { await navigator.share({ files: [arq], title: "Relatório de frequência" }); return; } catch (e) { if (e && e.name === "AbortError") return; }
-      }
-      salvar(blob, nome);
+      if (window.cpvEntregarArquivo) await window.cpvEntregarArquivo(blob, nome, "application/pdf"); else salvar(blob, nome);
     } catch (e) {
       console.error("PDF frequência:", e);
       typeof mostrarToast === "function" && mostrarToast("Não foi possível gerar o PDF. Tente de novo.");
