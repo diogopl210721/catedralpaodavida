@@ -83,3 +83,39 @@ ol.fr-pessoas li::before{ content:counter(fr); width:18px; font:700 13px var(--f
   .fr-filtros{ flex-direction:row; flex-wrap:wrap; }
   .fr-filtros .fr-seg{ flex:1; min-width:260px; }
 }
+
+/* Marcar presença manualmente */
+.fr-marcar-btn{ width:100%; display:flex; align-items:center; gap:12px; margin:0 0 16px; padding:14px; border-radius:20px; border:1px solid rgba(217,164,65,.45); background:linear-gradient(135deg,rgba(217,164,65,.16),var(--card)); color:var(--ink); text-align:left; cursor:pointer; font:inherit; }
+.fr-marcar-btn > span:first-child{ flex:none; width:42px; height:42px; border-radius:14px; display:grid; place-items:center; background:var(--trigo); color:#1B140C; }
+.fr-marcar-btn .ci{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.fr-marcar-btn b{ display:block; font:700 15px var(--fino); }
+.fr-marcar-btn small{ display:block; margin-top:2px; font:500 12.5px var(--fino); color:var(--ink-soft); }
+.fr-marcar-btn:focus-visible{ outline:2px solid var(--trigo-claro); outline-offset:2px; }
+
+html.fr-travado, html.fr-travado body{ overflow:hidden; }
+.fr-sheet{ position:fixed; inset:0; z-index:100000; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.55); }
+.fr-sheet[hidden]{ display:none; }
+.fr-sheet-in{ width:100%; max-width:560px; max-height:92dvh; display:flex; flex-direction:column; gap:10px; padding:18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius:26px 26px 0 0; background:var(--casca); border:1px solid var(--line); border-bottom:0; }
+@media (min-width:760px){ .fr-sheet{ align-items:center; } .fr-sheet-in{ border-radius:26px; border-bottom:1px solid var(--line); } }
+.fr-sheet-cab{ display:flex; align-items:center; justify-content:space-between; }
+.fr-sheet-cab h2{ margin:0; font:600 26px/1.1 var(--serif); color:var(--ink); }
+.fr-fechar{ width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--ink); font:600 16px var(--fino); cursor:pointer; }
+.fr-campo{ display:flex; flex-direction:column; gap:4px; }
+.fr-campo span{ font:600 12px var(--fino); color:var(--ink-soft); }
+.fr-campo input, .fr-campo select, .fr-busca{ min-height:44px; padding:0 12px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:600 16px var(--fino); color-scheme:dark; }
+html.cpv-claro .fr-campo input, html.cpv-claro .fr-busca{ color-scheme:light; }
+.fr-mk-info{ margin:2px 0 0; font:600 13px var(--fino); color:var(--trigo-claro); }
+.fr-mk-lista{ list-style:none; margin:0; padding:0; overflow:auto; flex:1; min-height:120px; display:flex; flex-direction:column; gap:6px; }
+.fr-mk-lista label{ display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:14px; background:var(--card); border:1px solid transparent; cursor:pointer; }
+.fr-mk-lista label.on{ border-color:rgba(217,164,65,.5); }
+.fr-mk-lista input{ position:absolute; opacity:0; width:1px; height:1px; }
+.fr-mk-lista input:focus-visible ~ .fr-caixa{ outline:2px solid var(--trigo-claro); outline-offset:2px; }
+.fr-mk-lista input:disabled ~ .fr-caixa{ opacity:.55; }
+.fr-caixa{ flex:none; width:26px; height:26px; border-radius:8px; border:2px solid rgba(var(--tinta),.3); display:grid; place-items:center; }
+.fr-mk-lista input:checked ~ .fr-caixa{ background:var(--trigo); border-color:var(--trigo); }
+.fr-mk-lista input:checked ~ .fr-caixa::after{ content:""; width:11px; height:6px; border:solid #1B140C; border-width:0 0 2.5px 2.5px; transform:translate(0,-2px) rotate(-45deg); }
+.fr-baixar{ display:grid; grid-template-columns:1fr; gap:8px; }
+@media (min-width:520px){ .fr-baixar{ grid-template-columns:1fr 1fr; } }
+.fr-baixar .cpv-btn[disabled]{ opacity:.7; cursor:progress; }
+html.fr-travado #cpv-abas{ display:none; }
+.fr-seg[hidden]{ display:none; }

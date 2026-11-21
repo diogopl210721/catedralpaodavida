@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="design-v11.css?v=1792665941">
 <link rel="stylesheet" href="design-catedral.css?v=22">
 <link rel="stylesheet" href="carteirinha.css?v=2">
-<link rel="stylesheet" href="presenca.css?v=1">
+<link rel="stylesheet" href="presenca.css?v=3">
 <link rel="preload" href="assets/fonts/cormorant-garamond-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -825,6 +825,11 @@
           <p class="hint" style="margin:-4px 0 12px;">A logo da igreja é adicionada automaticamente em cada foto, bem pequena, no canto.</p>
           <button class="btn btn-primary" type="button" id="btn-enviar-fotos">Enviar fotos</button>
           <p class="hint" id="af-progresso" style="display:none;margin-top:8px;"></p>
+          <div class="af-otimizar" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+            <p class="hint" style="margin:0 0 8px;">As fotos novas já sobem em versão leve para o app abrir rápido, e o original fica guardado para quem baixar. Toque abaixo uma vez para deixar leves também as fotos que já estavam no app.</p>
+            <button class="btn" type="button" id="btn-otimizar-fotos">Deixar fotos antigas leves</button>
+            <p class="hint" id="af-otimizar-info" style="margin-top:8px;"></p>
+          </div>
         </div>
 
         <div class="section-label"><b>Álbuns cadastrados</b></div>
@@ -2427,7 +2432,7 @@
 <script src="config.js?v=4"></script>
 <script>window.APP_VERSION = "1792665950";</script>
 <script src="motion.js?v=1792665941"></script>
-<script src="app.js?v=1795232933"></script>
+<script src="app.js?v=1795234037"></script>
 <script src="v7.js?v=1792665941"></script>
 <script src="assets/gsap.min.js?v=1792665941"></script>
 <script src="v8.js?v=1792665941"></script>
@@ -2436,7 +2441,7 @@
 <script src="catedral.js?v=17"></script>
 <script src="catedral-modulos.js?v=7"></script>
 <script src="carteirinha.js?v=2"></script>
-<script src="presenca.js?v=1"></script>
+<script src="presenca.js?v=3"></script>
 <script src="stories.js?v=1792665941"></script>
 </body>
 </html>

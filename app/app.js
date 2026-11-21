@@ -273,6 +273,37 @@ async function uploadArquivo(file, pasta) {
   }
 }
 
+
+// Versões leves das fotos: a miniatura (grade) e a média (tela cheia) carregam rápido;
+// o original, com qualidade total, fica no banco só para quem toca em "Baixar".
+function reduzirImagem(file, maxLado, qualidade) {
+  return new Promise(resolve => {
+    const u = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high"; ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u);
+      c.toBlob(b => resolve(b ? new File([b], "foto.jpg", { type: "image/jpeg" }) : null), "image/jpeg", qualidade);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); resolve(null); };
+    img.src = u;
+  });
+}
+async function enviarVersoesLeves(arquivo, pasta) {
+  const [media, mini] = await Promise.all([reduzirImagem(arquivo, 1600, 0.82), reduzirImagem(arquivo, 480, 0.72)]);
+  const [url_media, url_mini] = await Promise.all([media ? uploadArquivo(media, pasta) : null, mini ? uploadArquivo(mini, pasta) : null]);
+  return { url_media, url_mini };
+}
+const fotoMini = f => f?.url_mini || f?.url_media || f?.url || "";
+const fotoMedia = f => f?.url_media || f?.url || "";
+function linkDownloadFoto(url) {
+  if (!url) return "#";
+  return url.includes("/storage/v1/object/public/") ? url + (url.includes("?") ? "&" : "?") + "download=" : url;
+}
+
 // Aplica uma marca d'água pequena (logo da igreja) no canto inferior direito de uma foto, via Canvas
 function aplicarMarcaDagua(file, logoUrl) {
   return new Promise((resolve) => {
@@ -5204,7 +5235,7 @@ async function abrirAlbum(albumId) {
   state.fotosAlbumAtual = fotos || [];
   document.getElementById("grid-fotos-album").innerHTML = (fotos || []).map((f, i) => `
     <div class="foto-item" data-foto-idx="${i}">
-      <img src="${f.url}" alt="">
+      <img src="${fotoMini(f)}" alt="" loading="lazy" decoding="async">
     </div>
   `).join("") || `<div class="empty">Nenhuma foto neste álbum ainda.</div>`;
   document.querySelectorAll("[data-foto-idx]").forEach(el => {
@@ -5216,7 +5247,7 @@ async function compartilharAlbum(album) {
   const link = enderecoDoApp();
   const quando = album.data ? formatarData(album.data) : "";
   const texto = `📸 ${album.titulo || "Álbum de fotos"}${quando ? " · " + quando : ""}\n\nVeja as fotos no app da ${state.igreja?.nome || "igreja"}: ${link}${linhaVisiteSite()}`;
-  const capa = (state.fotosAlbumAtual || [])[0]?.url;
+  const capa = fotoMedia((state.fotosAlbumAtual || [])[0]);
   if (navigator.share) {
     try {
       const shareData = { text: texto };
@@ -5240,11 +5271,11 @@ async function carregarMinhasFotos() {
   const el = document.getElementById("grid-minhas-fotos");
   if (!state.membro) { el.innerHTML = `<div class="empty">Entre como membro pra ver suas fotos marcadas.</div>`; return; }
   el.innerHTML = `<p class="hint"><span class="loading-dot"></span> carregando...</p>`;
-  const { data } = await sb.from("igr_fotos_marcacoes").select("igr_fotos(id, url, album_id)").eq("membro_id", state.membro.id);
+  const { data } = await sb.from("igr_fotos_marcacoes").select("igr_fotos(id, url, url_mini, url_media, album_id)").eq("membro_id", state.membro.id);
   const fotos = (data || []).map(d => d.igr_fotos).filter(Boolean);
   state.fotosAlbumAtual = fotos;
   el.innerHTML = fotos.map((f, i) => `
-    <div class="foto-item" data-foto-idx="${i}"><img src="${f.url}" alt=""></div>
+    <div class="foto-item" data-foto-idx="${i}"><img src="${fotoMini(f)}" alt="" loading="lazy" decoding="async"></div>
   `).join("") || `<div class="empty">Nenhuma foto marcada com você ainda.</div>`;
   el.querySelectorAll("[data-foto-idx]").forEach(elx => {
     elx.addEventListener("click", () => abrirLightbox(parseInt(elx.dataset.fotoIdx, 10)));
@@ -5268,7 +5299,7 @@ async function carregarFotosParaMarcacao(albumId) {
   const { data } = await sb.from("igr_fotos").select("*").eq("album_id", albumId).order("created_at");
   state.mfFotosCache = data || [];
   grid.innerHTML = state.mfFotosCache.map((f, i) => `
-    <div class="foto-item" data-mf-foto-idx="${i}"><img src="${f.url}" alt=""></div>
+    <div class="foto-item" data-mf-foto-idx="${i}"><img src="${fotoMini(f)}" alt="" loading="lazy" decoding="async"></div>
   `).join("") || `<div class="empty">Nenhuma foto neste álbum ainda.</div>`;
   grid.querySelectorAll("[data-mf-foto-idx]").forEach(elx => {
     elx.addEventListener("click", () => abrirPainelMarcacao(parseInt(elx.dataset.mfFotoIdx, 10)));
@@ -5279,7 +5310,7 @@ async function abrirPainelMarcacao(idx) {
   if (!foto) return;
   state.mfFotoAtual = foto;
   document.getElementById("mf-marcar-painel").style.display = "block";
-  document.getElementById("mf-foto-preview").src = foto.url;
+  document.getElementById("mf-foto-preview").src = fotoMedia(foto);
   document.getElementById("mf-busca-pessoa").value = "";
   document.getElementById("mf-sugestoes").style.display = "none";
   await carregarPessoasMarcadasNaFoto();
@@ -5339,8 +5370,8 @@ function atualizarLightbox() {
   const fotos = state.fotosAlbumAtual || [];
   const foto = fotos[state.lightboxIndice];
   if (!foto) return;
-  document.getElementById("lightbox-img").src = foto.url;
-  document.getElementById("lightbox-baixar").href = foto.url;
+  document.getElementById("lightbox-img").src = fotoMedia(foto);
+  document.getElementById("lightbox-baixar").href = linkDownloadFoto(foto.url);
   document.getElementById("lightbox-contador").textContent = `${state.lightboxIndice + 1} / ${fotos.length}`;
   const mostraNav = fotos.length > 1;
   document.getElementById("lightbox-prev").style.display = mostraNav ? "flex" : "none";
@@ -8290,8 +8321,9 @@ async function enviarFotosAlbum() {
       const comMarca = await aplicarMarcaDagua(arquivo, logoUrl);
       const url = await uploadArquivo(comMarca, "fotos/" + albumId);
       if (url) {
-        await sb.from("igr_fotos").insert({ album_id: albumId, url });
-        if (!primeiraUrl) primeiraUrl = url;
+        const leves = await enviarVersoesLeves(comMarca, "fotos/" + albumId);
+        await sb.from("igr_fotos").insert({ album_id: albumId, url, ...leves });
+        if (!primeiraUrl) primeiraUrl = leves.url_media || url;
         enviadas++;
       }
     }
@@ -8310,6 +8342,33 @@ async function enviarFotosAlbum() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// fotos enviadas antes das versões leves: gera miniatura e média uma única vez
+async function otimizarFotosAntigas() {
+  const btn = document.getElementById("btn-otimizar-fotos"), info = document.getElementById("af-otimizar-info");
+  const { data: albuns } = await sb.from("igr_fotos_albuns").select("id, capa_url").eq("igreja_id", state.igreja.id);
+  const ids = (albuns || []).map(a => a.id);
+  if (!ids.length) { info.textContent = "Nenhum álbum ainda."; return; }
+  const { data: fotos } = await sb.from("igr_fotos").select("id, url, album_id").in("album_id", ids).is("url_mini", null);
+  if (!fotos || !fotos.length) { info.textContent = "Todas as fotos já estão leves. ✓"; return; }
+  btn.disabled = true;
+  let ok = 0;
+  for (const f of fotos) {
+    info.textContent = `Deixando leve: foto ${ok + 1} de ${fotos.length}… (mantenha esta tela aberta)`;
+    try {
+      const resp = await fetch(f.url); if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const leves = await enviarVersoesLeves(new File([blob], "foto.jpg", { type: blob.type || "image/jpeg" }), "fotos/" + f.album_id);
+      if (!leves.url_mini) continue;
+      await sb.from("igr_fotos").update(leves).eq("id", f.id);
+      const alb = albuns.find(a => a.id === f.album_id && a.capa_url === f.url);
+      if (alb && leves.url_media) { await sb.from("igr_fotos_albuns").update({ capa_url: leves.url_media }).eq("id", alb.id); alb.capa_url = leves.url_media; }
+      ok++;
+    } catch (e) { console.error("otimizar foto:", e); }
+  }
+  btn.disabled = false;
+  info.textContent = `${ok} de ${fotos.length} fotos ficaram leves. O original continua disponível para baixar. ✓`;
 }
 
 // ---------- admin: dados da igreja (endereço/redes) ----------
@@ -8616,7 +8675,9 @@ async function iniciar() {
   document.getElementById("btn-zoom-largura")?.addEventListener("click", resetarZoomLargura);
   document.getElementById("btn-pagina-proxima")?.addEventListener("click", () => mudarPaginaLivro(1));
   document.getElementById("form-admin-album")?.addEventListener("submit", enviarAlbumAdmin);
+  document.getElementById("btn-otimizar-fotos")?.addEventListener("click", otimizarFotosAntigas);
   document.getElementById("btn-enviar-fotos")?.addEventListener("click", enviarFotosAlbum);
+  document.getElementById("btn-otimizar-fotos")?.addEventListener("click", otimizarFotosAntigas);
   document.getElementById("form-admin-igreja")?.addEventListener("submit", enviarIgrejaAdmin);
   document.getElementById("form-admin-pastor-perfil")?.addEventListener("submit", enviarPastorPerfilAdmin);
   document.getElementById("form-grupo-info")?.addEventListener("submit", enviarGrupoInfo);
