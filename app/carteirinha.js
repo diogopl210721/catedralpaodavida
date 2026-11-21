@@ -12,17 +12,17 @@
   const iniciais = n => String(n || "?").trim().split(/\s+/).filter(p => p.length > 2 || /^[A-ZÁÉÍÓÚ]/.test(p)).slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
   const tel = t => { const d = String(t || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, ""); return d.length === 11 ? `(${d.slice(0, 2)}) ${d[2]} ${d.slice(3, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : (t || "—"); };
 
+  // Nº de membro = ordem de entrada na igreja (CPV-001, CPV-002…), definido pelo banco
+  const fmtNum = n => "CPV-" + String(n).padStart(3, "0");
   async function numeroDoMembro(m) {
-    if (m.numero) return m.numero;
+    if (m.numero_membro) return fmtNum(m.numero_membro);
     try {
-      const { count } = await sb.from("igr_membros").select("id", { count: "exact", head: true })
-        .eq("igreja_id", state.igreja.id).lte("created_at", m.created_at);
-      const n = "CPV-" + String(count || 1).padStart(4, "0");
-      sb.from("igr_membros").update({ numero: n }).eq("id", m.id).then(() => {});
-      m.numero = n;
-      return n;
-    } catch (e) { return "CPV-" + String(m.id).slice(0, 4).toUpperCase(); }
+      const { data } = await sb.from("igr_membros").select("numero_membro").eq("id", m.id).maybeSingle();
+      if (data && data.numero_membro) { m.numero_membro = data.numero_membro; return fmtNum(data.numero_membro); }
+    } catch (e) {}
+    return "CPV-—";
   }
+
 
   function montarCartao(d) {
     const foto = d.foto ? `<img src="${esc(d.foto)}" crossorigin="anonymous" alt="">` : `<div class="ct-ini">${esc(iniciais(d.nome))}</div>`;

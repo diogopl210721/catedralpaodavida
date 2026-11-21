@@ -28,7 +28,7 @@
   async function carregarDados() {
     const ig = state.igreja;
       const [mb, gr, mg] = await Promise.all([
-      sb.from("igr_membros").select("id,numero,foto_url,nome_completo,genero,data_nascimento,estado_civil,telefone,email,endereco,profissao,grupo_id,eh_lider,batizado,data_batismo,pastor_batismo,created_at,ultimo_acesso,autoriza_fotos").eq("igreja_id", ig.id).order("nome_completo"),
+      sb.from("igr_membros").select("id,numero,numero_membro,foto_url,nome_completo,genero,data_nascimento,estado_civil,telefone,email,endereco,profissao,grupo_id,eh_lider,batizado,data_batismo,pastor_batismo,created_at,ultimo_acesso,autoriza_fotos").eq("igreja_id", ig.id).order("numero_membro", { ascending: true, nullsFirst: false }).order("created_at"),
       sb.from("igr_grupos").select("id,nome,tipo").eq("igreja_id", ig.id),
       sb.from("igr_membros_grupos").select("membro_id,grupo_id"),
     ]);
@@ -38,13 +38,13 @@
     (mg.data || []).forEach(r => { if (!grupos.has(r.grupo_id)) return; if (!extras.has(r.membro_id)) extras.set(r.membro_id, new Set()); extras.get(r.membro_id).add(r.grupo_id); });
     // número de membro: o salvo, senão a ordem de cadastro (igual à carteirinha)
     const porCadastro = membros.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-    const ordem = new Map(porCadastro.map((m, i) => [m.id, "CPV-" + String(i + 1).padStart(4, "0")]));
+    const ordem = new Map(porCadastro.map((m, i) => [m.id, "CPV-" + String(i + 1).padStart(3, "0")]));
 
     const linhas = membros.map(m => {
       const nasc = data(m.data_nascimento), outros = [...(extras.get(m.id) || [])].filter(g => g !== m.grupo_id).map(g => grupos.get(g)?.nome).filter(Boolean);
       return {
-        num: m.numero || ordem.get(m.id), nome: cap(m.nome_completo), genero: generoTxt(m.genero), nasc, idade: idade(nasc), estado: estadoTxt(m.estado_civil),
-        tel: tel(m.telefone), email: cap(m.email), endereco: cap(m.endereco), profissao: cap(m.profissao),
+        num: m.numero_membro ? "CPV-" + String(m.numero_membro).padStart(3, "0") : ordem.get(m.id), nome: cap(m.nome_completo), genero: generoTxt(m.genero), nasc, idade: idade(nasc), estado: estadoTxt(m.estado_civil),
+        tel: tel(m.telefone), email: cap(m.email), endereco: [cap(m.endereco), cap(m.numero)].filter(Boolean).join(", "), profissao: cap(m.profissao),
         grupo: grupos.get(m.grupo_id)?.nome || "", outros: outros.join(", "), lider: m.eh_lider ? "Sim" : "Não",
         batizado: m.batizado ? "Sim" : "Não", dataBat: data(m.data_batismo), porQuem: cap(m.pastor_batismo),
         desde: data(m.created_at), acesso: data(m.ultimo_acesso), fotos: m.autoriza_fotos === false ? "Não" : m.autoriza_fotos ? "Sim" : "",
