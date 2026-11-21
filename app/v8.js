@@ -146,8 +146,12 @@ gl_FragColor=vec4(col,1.);}`;
     digitando = setInterval(() => { i += 2; m.textContent = txt.slice(0, i); if (i >= txt.length) { clearInterval(digitando); fim(); } }, 26);
   }
 
-  function lerDevocional() {
-    if (!state.devocionalGerado) { mostrarToast("Seu devocional ainda está sendo preparado… tente em instantes 🙏"); return; }
+  async function lerDevocional() {
+    if (!state.devocionalGerado) {
+      const b = $("#palavra-ler"), t = b.textContent; b.disabled = true; b.textContent = "Preparando…";
+      try { state.devocionalGerado = await gerarDevocionalDoDia(); } finally { b.disabled = false; b.textContent = t; }
+      if (!state.devocionalGerado) { mostrarToast("Não deu pra abrir o devocional agora. Verifique a internet e tente de novo 🙏"); return; }
+    }
     fechar();
     confete();
     abrirDevocional();
