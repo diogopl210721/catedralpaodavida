@@ -6667,7 +6667,7 @@ async function carregarPainelAdmin() {
         <label class="interesse-item"><input type="checkbox" value="editar_grupo" checked> Editar capa/descrição</label>
         <label class="interesse-item"><input type="checkbox" value="postar_avisos" checked> Postar avisos</label>
         <label class="interesse-item"><input type="checkbox" value="gerenciar_oracao" checked> Ver pedidos de oração</label>
-        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_danca"> Gerenciar Dança</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label><label class="interesse-item"><input type="checkbox" value="gerenciar_fotos"> Publicar fotos (Mídia)</label>
+        <label class="interesse-item"><input type="checkbox" value="gerenciar_louvor"> Gerenciar Louvor</label><label class="interesse-item"><input type="checkbox" value="gerenciar_danca"> Gerenciar Dança</label><label class="interesse-item"><input type="checkbox" value="gerenciar_diaconato"> Montar escalas do Diaconato</label><label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes"> Registrar reuniões</label><label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas"> Configurar ofertas</label><label class="interesse-item"><input type="checkbox" value="gerenciar_fotos"> Publicar fotos (Mídia)</label><label class="interesse-item"><input type="checkbox" value="ver_frequencia"> Ver relatório de frequência</label>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn btn-primary" style="width:auto;padding:9px 16px;font-size:12.5px;" data-acao="aprovar" data-id="${m.id}">Aprovar</button>
@@ -6794,6 +6794,7 @@ async function carregarLideresAtivos() {
           <label class="interesse-item"><input type="checkbox" value="gerenciar_reunioes" ${(m.permissoes || []).includes("gerenciar_reunioes") ? "checked" : ""}> Registrar reuniões</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_ofertas" ${(m.permissoes || []).includes("gerenciar_ofertas") ? "checked" : ""}> Configurar ofertas</label>
           <label class="interesse-item"><input type="checkbox" value="gerenciar_fotos" ${(m.permissoes || []).includes("gerenciar_fotos") ? "checked" : ""}> Publicar fotos (Mídia)</label>
+          <label class="interesse-item"><input type="checkbox" value="ver_frequencia" ${(m.permissoes || []).includes("ver_frequencia") ? "checked" : ""}> Ver relatório de frequência</label>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" style="flex:1;" data-salvar-lider="${m.id}">Salvar</button>
