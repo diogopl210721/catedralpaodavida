@@ -400,8 +400,8 @@ gl_FragColor=vec4(col,1.);}`;
           </ol>
         </section>
         <nav class="cpv-atalhos" aria-label="Atalhos">
-          ${[["Diário", "c-diario", "tela-diario"], ["Eventos", "c-eventos", "tela-eventos"], ["Chat", "c-chat", "tela-mensagens"], ["Ofertar", "c-oferta", "@tela-cpv-ofertas"], ["Grupos", "c-grupos", "tela-grupos-lista"], ["Tudo", "c-tudo", null]]
-            .map(([r, i, t]) => `<button type="button" ${!t ? "data-abrir-explorar" : t.startsWith("@") ? `data-cpv-ir="${t.slice(1)}"` : `data-nav="${t}"`}><span class="cpv-tile">${ci(i)}</span><span>${r}</span></button>`).join("")}
+          ${[["Carteirinha", "c-eu", "!carteirinha"], ["Diário", "c-diario", "tela-diario"], ["Eventos", "c-eventos", "tela-eventos"], ["Chat", "c-chat", "tela-mensagens"], ["Ofertar", "c-oferta", "@tela-cpv-ofertas"], ["Grupos", "c-grupos", "tela-grupos-lista"], ["Livros", "c-livros", "tela-biblioteca"], ["Fotos", "c-fotos", "tela-fotos"], ["Tudo", "c-tudo", null]]
+            .map(([r, i, t]) => `<button type="button" ${!t ? "data-abrir-explorar" : t === "!carteirinha" ? "data-abrir-carteirinha" : t.startsWith("@") ? `data-cpv-ir="${t.slice(1)}"` : `data-nav="${t}"`}><span class="cpv-tile">${ci(i)}</span><span>${r}</span></button>`).join("")}
         </nav>`;
       $$(".cpv-passo", topo).forEach(b => b.addEventListener("click", () => acaoPasso(b.dataset.passo)));
       humorJaFeito();

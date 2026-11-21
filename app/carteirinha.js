@@ -1,0 +1,210 @@
+/* Catedral Pão da Vida — Carteirinha de membro (frente e verso, PNG e PDF) */
+(function () {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SITE = "https://www.catedralpaodavida.com.br";
+  const PASTORES = [{ nome: "Pr. Ismair Soares", ass: "Ismair Soares" }, { nome: "Pra. Débora Soares", ass: "Débora Soares" }];
+  const W = 1012, H = 638;
+
+  const dataBR = d => { if (!d) return "—"; const [a, m, dd] = String(d).slice(0, 10).split("-"); return `${dd}/${m}/${a}`; };
+  const mesAno = d => { if (!d) return "—"; const x = new Date(d); return x.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }).replace(". de ", "/").replace(" de ", "/").replace(".", ""); };
+  const iniciais = n => String(n || "?").trim().split(/\s+/).filter(p => p.length > 2 || /^[A-ZÁÉÍÓÚ]/.test(p)).slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
+  const tel = t => { const d = String(t || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, ""); return d.length === 11 ? `(${d.slice(0, 2)}) ${d[2]} ${d.slice(3, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : (t || "—"); };
+
+  async function numeroDoMembro(m) {
+    if (m.numero) return m.numero;
+    try {
+      const { count } = await sb.from("igr_membros").select("id", { count: "exact", head: true })
+        .eq("igreja_id", state.igreja.id).lte("created_at", m.created_at);
+      const n = "CPV-" + String(count || 1).padStart(4, "0");
+      sb.from("igr_membros").update({ numero: n }).eq("id", m.id).then(() => {});
+      m.numero = n;
+      return n;
+    } catch (e) { return "CPV-" + String(m.id).slice(0, 4).toUpperCase(); }
+  }
+
+  function montarCartao(d) {
+    const foto = d.foto ? `<img src="${esc(d.foto)}" crossorigin="anonymous" alt="">` : `<div class="ct-ini">${esc(iniciais(d.nome))}</div>`;
+    return `
+    <div class="ct-card ct-frente" id="ct-frente">
+      <img class="ct-marca" src="assets/logo-branca.png" alt="">
+      <div class="ct-topo"><img class="ct-lg" src="assets/logo-branca.png" alt=""><div><img class="ct-nm" src="assets/nome-script-branco.png" alt=""><small>Igreja do Evangelho Quadrangular</small></div></div>
+      <div class="ct-tipo"><b>Carteira de Membro</b><span>Balneário Ipanema · PR</span></div>
+      <div class="ct-foto">${foto}</div>
+      <div class="ct-dados">
+        <h1>${esc(d.nome)}</h1>
+        <div class="ct-cargo">${esc(d.cargo)}</div>
+        <div class="ct-linha">
+          <div><span>Nº de membro</span><b>${esc(d.numero)}</b></div>
+          <div><span>Membro desde</span><b>${esc(d.desde)}</b></div>
+          ${d.batismo ? `<div><span>Batismo</span><b>${esc(d.batismo)}</b></div>` : ""}
+        </div>
+      </div>
+      <div class="ct-holo"><span>catedralpaodavida.com.br</span><b>CPV · ${new Date().getFullYear()}</b></div>
+    </div>
+    <div class="ct-card ct-verso" id="ct-verso">
+      <img class="ct-marca" src="assets/logo-branca.png" alt="" style="left:-120px;right:auto;opacity:.05">
+      <div class="ct-v-topo"><b>Dados do membro</b><img src="assets/nome-script-branco.png" alt=""></div>
+      <div class="ct-grade">
+        <div><span>Data de nascimento</span><b>${esc(d.nasc)}</b></div>
+        <div><span>Estado civil</span><b>${esc(d.civil)}</b></div>
+        <div><span>Grupo</span><b>${esc(d.grupo)}</b></div>
+        <div><span>Telefone</span><b>${esc(d.tel)}</b></div>
+        <div><span>Batizado(a) por</span><b>${esc(d.pastorBatismo)}</b></div>
+        <div><span>Emitida em</span><b>${esc(d.emissao)}</b></div>
+      </div>
+      <div class="ct-qr"><div class="q"><canvas id="ct-qr"></canvas></div><small>Aponte a câmera para<br>conferir a carteirinha</small></div>
+      <div class="ct-ass">
+        ${PASTORES.map(p => `<div><div class="sig">${esc(p.ass)}</div><i></i><b>${esc(p.nome)}</b></div>`).join("")}
+        <span>Pastores Titulares</span>
+      </div>
+      <div class="ct-holo"><span>Esta carteira é pessoal e intransferível · Catedral Pão da Vida</span></div>
+    </div>`;
+  }
+
+  async function dadosDoMembro(m) {
+    const g = (state.grupos || []).find(x => x.id === m.grupo_id);
+    const funcao = m.eh_lider ? "Líder" : "Membro";
+    return {
+      nome: m.nome_completo || "Membro",
+      foto: m.foto_url || "",
+      cargo: g ? `${funcao} · ${g.nome}` : funcao,
+      numero: await numeroDoMembro(m),
+      desde: mesAno(m.created_at),
+      batismo: m.batizado && m.data_batismo ? dataBR(m.data_batismo) : (m.batizado ? "Batizado(a)" : ""),
+      nasc: dataBR(m.data_nascimento),
+      civil: m.estado_civil ? m.estado_civil[0].toUpperCase() + m.estado_civil.slice(1) : "—",
+      grupo: g ? g.nome : "—",
+      tel: tel(m.telefone),
+      pastorBatismo: m.pastor_batismo || (m.batizado ? "—" : "Ainda não batizado(a)"),
+      emissao: dataBR(new Date().toISOString()),
+      id: m.id,
+    };
+  }
+
+  function encaixar() {
+    const box = $("#ct-palco"); if (!box) return;
+    const larg = box.clientWidth; const esc = Math.min(1, larg / W);
+    box.querySelectorAll(".ct-card").forEach(c => { c.style.transform = `scale(${esc})`; });
+    box.querySelectorAll(".ct-slot").forEach(s => { s.style.height = (H * esc) + "px"; });
+  }
+
+  async function abrir() {
+    if (!state.membro) { window.mostrarTela && window.mostrarTela("tela-login"); return; }
+    let t = $("#tela-cpv-carteirinha");
+    if (!t) {
+      t = document.createElement("div");
+      t.className = "screen cpv-layout"; t.id = "tela-cpv-carteirinha";
+      t.innerHTML = `<div class="scroll">
+        <div class="cpv-topo-tela"><button type="button" class="cpv-voltar" data-cpv-voltar="tela-membro-home" aria-label="Voltar"><svg class="ci" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <header class="cpv-saudacao"><p>Catedral Pão da Vida</p><h1>Minha carteirinha</h1></header></div>
+        <div id="ct-palco"><p class="ct-carregando">Gerando sua carteirinha…</p></div>
+        <div class="ct-acoes">
+          <button type="button" class="cpv-btn ouro" id="ct-png">Baixar PNG</button>
+          <button type="button" class="cpv-btn" id="ct-pdf">Baixar PDF</button>
+        </div>
+        <p class="ct-dica">O PDF sai no tamanho de cartão (8,6 × 5,4 cm), frente e verso, pronto para imprimir e plastificar. Para mudar algum dado, atualize o seu perfil.</p>
+      </div>`;
+      ($("#tela-membro-home")).after(t);
+      $("#ct-png", t).addEventListener("click", baixarPNG);
+      $("#ct-pdf", t).addEventListener("click", baixarPDF);
+      window.addEventListener("resize", encaixar);
+    }
+    window.mostrarTela("tela-cpv-carteirinha");
+    const d = await dadosDoMembro(state.membro);
+    const palco = $("#ct-palco", t);
+    palco.innerHTML = `<p class="ct-lado">Frente</p><div class="ct-slot"></div><p class="ct-lado">Verso</p><div class="ct-slot"></div>`;
+    const tmp = document.createElement("div"); tmp.innerHTML = montarCartao(d);
+    const slots = palco.querySelectorAll(".ct-slot");
+    slots[0].appendChild(tmp.children[0]); slots[1].appendChild(tmp.children[0]);
+    if (window.QRCode) {
+      try {
+        const url = await QRCode.toDataURL(`${SITE}/app/#verificar=${d.id}`, { width: 380, margin: 0, color: { dark: "#14110E", light: "#F3E7D3" } });
+        const cv = $("#ct-qr"); const img = new Image(); img.src = url; img.alt = "QR Code de conferência"; img.className = "ct-qr-img"; cv.replaceWith(img);
+      } catch (e) { console.error(e); }
+    }
+    encaixar();
+  }
+
+  async function capturar(id) {
+    const el = $("#" + id);
+    const prev = el.style.transform; el.style.transform = "none";
+    try {
+      await document.fonts.ready;
+      const c = await html2canvas(el, { scale: 2, backgroundColor: null, useCORS: true, logging: false,
+        onclone: (doc) => { const k = doc.getElementById(id); if (k) k.style.boxShadow = "none"; } });
+      // recorta os cantos arredondados do cartão
+      const r = 44 * 2, o = document.createElement("canvas"); o.width = c.width; o.height = c.height;
+      const x = o.getContext("2d"); x.beginPath();
+      if (x.roundRect) x.roundRect(0, 0, o.width, o.height, r); else x.rect(0, 0, o.width, o.height);
+      x.clip(); x.drawImage(c, 0, 0);
+      // filete dourado da borda (desenhado aqui; o html2canvas distorce o inset shadow)
+      x.lineWidth = 4 * (c.width / el.offsetWidth) / 2; x.strokeStyle = "rgba(217,164,65,.35)";
+      x.beginPath(); if (x.roundRect) x.roundRect(0, 0, o.width, o.height, r); else x.rect(0, 0, o.width, o.height); x.stroke();
+      // garante o QR Code nítido na imagem final (html2canvas às vezes o omite)
+      const qr = el.querySelector(".ct-qr-img");
+      if (qr && qr.complete && qr.naturalWidth) {
+        const a = el.getBoundingClientRect(), b = qr.getBoundingClientRect(), k = c.width / a.width;
+        x.imageSmoothingEnabled = false;
+        x.drawImage(qr, (b.left - a.left) * k, (b.top - a.top) * k, b.width * k, b.height * k);
+      }
+      return o;
+    } finally { el.style.transform = prev; }
+  }
+  function nomeArquivo(ext) { return `carteirinha-${String(state.membro?.nome_completo || "membro").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.${ext}`; }
+  function avisar(msg) { if (typeof mostrarToast === "function") mostrarToast(msg); }
+  async function entregar(blob, nome, tipo) {
+    const arq = new File([blob], nome, { type: tipo });
+    if (navigator.canShare && navigator.canShare({ files: [arq] }) && /iphone|ipad|android/i.test(navigator.userAgent)) {
+      try { await navigator.share({ files: [arq], title: "Minha carteirinha" }); return; } catch (e) { if (e.name === "AbortError") return; }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  async function baixarPNG() {
+    const b = $("#ct-png"); b.disabled = true; b.textContent = "Gerando…";
+    try {
+      const [f, v] = await Promise.all([capturar("ct-frente"), capturar("ct-verso")]);
+      const gap = 60, c = document.createElement("canvas");
+      c.width = f.width; c.height = f.height + v.height + gap;
+      const x = c.getContext("2d"); x.drawImage(f, 0, 0); x.drawImage(v, 0, f.height + gap);
+      const blob = await new Promise(r => c.toBlob(r, "image/png"));
+      await entregar(blob, nomeArquivo("png"), "image/png");
+    } catch (e) { console.error(e); avisar("Não deu para gerar a imagem agora. Tente de novo."); }
+    b.disabled = false; b.textContent = "Baixar PNG";
+  }
+  async function baixarPDF() {
+    const b = $("#ct-pdf"); b.disabled = true; b.textContent = "Gerando…";
+    try {
+      const [f, v] = await Promise.all([capturar("ct-frente"), capturar("ct-verso")]);
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [85.6, 54] });
+      pdf.addImage(f.toDataURL("image/jpeg", .95), "JPEG", 0, 0, 85.6, 54);
+      pdf.addPage([85.6, 54], "landscape");
+      pdf.addImage(v.toDataURL("image/jpeg", .95), "JPEG", 0, 0, 85.6, 54);
+      await entregar(pdf.output("blob"), nomeArquivo("pdf"), "application/pdf");
+    } catch (e) { console.error(e); avisar("Não deu para gerar o PDF agora. Tente de novo."); }
+    b.disabled = false; b.textContent = "Baixar PDF";
+  }
+
+  /* Conferência pelo QR Code: /app/#verificar=<id> */
+  async function verificar() {
+    const m = /verificar=([0-9a-f-]{36})/i.exec(location.hash); if (!m) return;
+    const f = document.createElement("div"); f.className = "ct-verif";
+    f.innerHTML = `<div class="ct-verif-c"><img src="assets/logo-branca.png" alt=""><p>Conferindo carteirinha…</p></div>`;
+    document.body.appendChild(f);
+    let r = null;
+    try { const q = await sb.from("igr_membros").select("nome_completo, foto_url, created_at, igreja_id").eq("id", m[1]).maybeSingle(); r = q.data; } catch (e) {}
+    const ok = r && (!state.igreja || r.igreja_id === state.igreja.id);
+    f.querySelector(".ct-verif-c").innerHTML = ok
+      ? `<img src="assets/logo-branca.png" alt=""><div class="ct-ok">✓</div><h2>Membro ativo</h2>
+         ${r.foto_url ? `<img class="ct-vf" src="${esc(r.foto_url)}" alt="">` : ""}<b>${esc(r.nome_completo)}</b><p>Membro da Catedral Pão da Vida desde ${esc(mesAno(r.created_at))}</p><button type="button" class="cpv-btn ouro">Fechar</button>`
+      : `<img src="assets/logo-branca.png" alt=""><div class="ct-ok no">!</div><h2>Carteirinha não encontrada</h2><p>Este cadastro não está ativo na Catedral Pão da Vida.</p><button type="button" class="cpv-btn">Fechar</button>`;
+    f.querySelector("button").onclick = () => { f.remove(); history.replaceState(null, "", location.pathname); };
+  }
+  window.addEventListener("load", () => setTimeout(verificar, 1200));
+
+  window.abrirCarteirinha = abrir;
+  document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-abrir-carteirinha]")) abrir(); });
+})();
