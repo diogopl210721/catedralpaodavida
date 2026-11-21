@@ -122,20 +122,25 @@
       try {
         const url = await QRCode.toDataURL(`${SITE}/app/#verificar=${d.id}`, { width: 380, margin: 0, color: { dark: "#14110E", light: "#F3E7D3" } });
         const cv = $("#ct-qr"); const img = new Image(); img.src = url; img.alt = "QR Code de conferência"; img.className = "ct-qr-img"; cv.replaceWith(img);
+        if (!img.complete) await new Promise(r => { img.onload = img.onerror = r; });
       } catch (e) { console.error(e); }
     }
     encaixar();
+    preparo = null;
+    // espera as fotos/fontes e prepara os arquivos sem travar a tela
+    setTimeout(() => preparar().catch(e => console.warn("carteirinha (pré-geração):", e)), 400);
   }
 
+  const ESCALA = 1.6; // 1620 px de largura: nítido para imprimir no tamanho de cartão
   async function capturar(id) {
     const el = $("#" + id);
     const prev = el.style.transform; el.style.transform = "none";
     try {
       await document.fonts.ready;
-      const c = await html2canvas(el, { scale: 2, backgroundColor: null, useCORS: true, logging: false,
+      const c = await html2canvas(el, { scale: ESCALA, backgroundColor: null, useCORS: true, logging: false,
         onclone: (doc) => { const k = doc.getElementById(id); if (k) k.style.boxShadow = "none"; } });
       // recorta os cantos arredondados do cartão
-      const r = 44 * 2, o = document.createElement("canvas"); o.width = c.width; o.height = c.height;
+      const r = 44 * ESCALA, o = document.createElement("canvas"); o.width = c.width; o.height = c.height;
       const x = o.getContext("2d"); x.beginPath();
       if (x.roundRect) x.roundRect(0, 0, o.width, o.height, r); else x.rect(0, 0, o.width, o.height);
       x.clip(); x.drawImage(c, 0, 0);
@@ -186,31 +191,43 @@
     });
   }
   window.cpvEntregarArquivo = entregar;
-  async function baixarPNG() {
-    const b = $("#ct-png"); b.disabled = true; b.textContent = "Gerando…";
-    try {
-      const [f, v] = await Promise.all([capturar("ct-frente"), capturar("ct-verso")]);
-      const gap = 60, c = document.createElement("canvas");
+  // Gera PNG e PDF em segundo plano assim que a carteirinha aparece; o toque em Baixar só entrega.
+  let preparo = null;
+  function preparar() {
+    if (preparo) return preparo;
+    preparo = (async () => {
+      const f = await capturar("ct-frente");
+      await new Promise(r => setTimeout(r, 30));
+      const v = await capturar("ct-verso");
+      const gap = Math.round(30 * ESCALA), c = document.createElement("canvas");
       c.width = f.width; c.height = f.height + v.height + gap;
       const x = c.getContext("2d"); x.drawImage(f, 0, 0); x.drawImage(v, 0, f.height + gap);
-      const blob = await new Promise(r => c.toBlob(r, "image/png"));
-      await entregar(blob, nomeArquivo("png"), "image/png");
-    } catch (e) { console.error(e); avisar("Não deu para gerar a imagem agora. Tente de novo."); }
-    b.disabled = false; b.textContent = "Baixar PNG";
+      const png = await new Promise(r => c.toBlob(r, "image/png"));
+      let pdf = null;
+      if (window.jspdf) {
+        const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: [85.6, 54] });
+        doc.addImage(f.toDataURL("image/jpeg", .92), "JPEG", 0, 0, 85.6, 54);
+        doc.addPage([85.6, 54], "landscape");
+        doc.addImage(v.toDataURL("image/jpeg", .92), "JPEG", 0, 0, 85.6, 54);
+        pdf = doc.output("blob");
+      }
+      return { png, pdf };
+    })();
+    preparo.catch(() => { preparo = null; });
+    return preparo;
   }
-  async function baixarPDF() {
-    const b = $("#ct-pdf"); b.disabled = true; b.textContent = "Gerando…";
+  async function baixar(tipo) {
+    const b = $(tipo === "png" ? "#ct-png" : "#ct-pdf"), txt = b.textContent;
+    b.disabled = true; b.textContent = "Preparando…";
     try {
-      const [f, v] = await Promise.all([capturar("ct-frente"), capturar("ct-verso")]);
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [85.6, 54] });
-      pdf.addImage(f.toDataURL("image/jpeg", .95), "JPEG", 0, 0, 85.6, 54);
-      pdf.addPage([85.6, 54], "landscape");
-      pdf.addImage(v.toDataURL("image/jpeg", .95), "JPEG", 0, 0, 85.6, 54);
-      await entregar(pdf.output("blob"), nomeArquivo("pdf"), "application/pdf");
-    } catch (e) { console.error(e); avisar("Não deu para gerar o PDF agora. Tente de novo."); }
-    b.disabled = false; b.textContent = "Baixar PDF";
+      const r = await preparar();
+      const blob = tipo === "png" ? r.png : r.pdf;
+      if (!blob) throw new Error("sem arquivo");
+      await entregar(blob, nomeArquivo(tipo), tipo === "png" ? "image/png" : "application/pdf");
+    } catch (e) { console.error(e); avisar(tipo === "png" ? "Não deu para gerar a imagem agora. Tente de novo." : "Não deu para gerar o PDF agora. Tente de novo."); }
+    b.disabled = false; b.textContent = txt;
   }
+  const baixarPNG = () => baixar("png"), baixarPDF = () => baixar("pdf");
 
   /* Conferência pelo QR Code: /app/#verificar=<id> */
   async function verificar() {
