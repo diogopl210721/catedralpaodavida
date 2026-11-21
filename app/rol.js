@@ -25,37 +25,44 @@
     } catch (e) { return null; }
   }
 
-  async function gerarRol(btn) {
+  async function carregarDados() {
+    const ig = state.igreja;
+      const [mb, gr, mg] = await Promise.all([
+      sb.from("igr_membros").select("id,numero,foto_url,nome_completo,genero,data_nascimento,estado_civil,telefone,email,endereco,profissao,grupo_id,eh_lider,batizado,data_batismo,pastor_batismo,created_at,ultimo_acesso,autoriza_fotos").eq("igreja_id", ig.id).order("nome_completo"),
+      sb.from("igr_grupos").select("id,nome,tipo").eq("igreja_id", ig.id),
+      sb.from("igr_membros_grupos").select("membro_id,grupo_id"),
+    ]);
+    if (mb.error) throw mb.error;
+    const membros = mb.data || [], grupos = new Map((gr.data || []).map(g => [g.id, g]));
+    const extras = new Map();
+    (mg.data || []).forEach(r => { if (!grupos.has(r.grupo_id)) return; if (!extras.has(r.membro_id)) extras.set(r.membro_id, new Set()); extras.get(r.membro_id).add(r.grupo_id); });
+    // número de membro: o salvo, senão a ordem de cadastro (igual à carteirinha)
+    const porCadastro = membros.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    const ordem = new Map(porCadastro.map((m, i) => [m.id, "CPV-" + String(i + 1).padStart(4, "0")]));
+
+    const linhas = membros.map(m => {
+      const nasc = data(m.data_nascimento), outros = [...(extras.get(m.id) || [])].filter(g => g !== m.grupo_id).map(g => grupos.get(g)?.nome).filter(Boolean);
+      return {
+        num: m.numero || ordem.get(m.id), nome: cap(m.nome_completo), genero: generoTxt(m.genero), nasc, idade: idade(nasc), estado: estadoTxt(m.estado_civil),
+        tel: tel(m.telefone), email: cap(m.email), endereco: cap(m.endereco), profissao: cap(m.profissao),
+        grupo: grupos.get(m.grupo_id)?.nome || "", outros: outros.join(", "), lider: m.eh_lider ? "Sim" : "Não",
+        batizado: m.batizado ? "Sim" : "Não", dataBat: data(m.data_batismo), porQuem: cap(m.pastor_batismo),
+        desde: data(m.created_at), acesso: data(m.ultimo_acesso), fotos: m.autoriza_fotos === false ? "Não" : m.autoriza_fotos ? "Sim" : "",
+        tipoGrupo: grupos.get(m.grupo_id)?.tipo, id: m.id, foto: m.foto_url, gids: new Set([m.grupo_id, ...(extras.get(m.id) || [])].filter(Boolean)), telBruto: m.telefone,
+      };
+    });
+
+    return { linhas, grupos };
+  }
+
+  async function gerarRol(btn, dadosProntos, filtrar) {
     const txt = btn && btn.innerHTML;
     if (btn) { btn.disabled = true; btn.innerHTML = "Gerando planilha…"; }
     try {
       if (!window.ExcelJS) await carregarScript("vendor/exceljs.min.js");
       const ig = state.igreja;
-      const [mb, gr, mg] = await Promise.all([
-        sb.from("igr_membros").select("id,numero,nome_completo,genero,data_nascimento,estado_civil,telefone,email,endereco,profissao,grupo_id,eh_lider,batizado,data_batismo,pastor_batismo,created_at,ultimo_acesso,autoriza_fotos").eq("igreja_id", ig.id).order("nome_completo"),
-        sb.from("igr_grupos").select("id,nome,tipo").eq("igreja_id", ig.id),
-        sb.from("igr_membros_grupos").select("membro_id,grupo_id"),
-      ]);
-      if (mb.error) throw mb.error;
-      const membros = mb.data || [], grupos = new Map((gr.data || []).map(g => [g.id, g]));
-      const extras = new Map();
-      (mg.data || []).forEach(r => { if (!grupos.has(r.grupo_id)) return; if (!extras.has(r.membro_id)) extras.set(r.membro_id, new Set()); extras.get(r.membro_id).add(r.grupo_id); });
-      // número de membro: o salvo, senão a ordem de cadastro (igual à carteirinha)
-      const porCadastro = membros.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-      const ordem = new Map(porCadastro.map((m, i) => [m.id, "CPV-" + String(i + 1).padStart(4, "0")]));
-
-      const linhas = membros.map(m => {
-        const nasc = data(m.data_nascimento), outros = [...(extras.get(m.id) || [])].filter(g => g !== m.grupo_id).map(g => grupos.get(g)?.nome).filter(Boolean);
-        return {
-          num: m.numero || ordem.get(m.id), nome: cap(m.nome_completo), genero: generoTxt(m.genero), nasc, idade: idade(nasc), estado: estadoTxt(m.estado_civil),
-          tel: tel(m.telefone), email: cap(m.email), endereco: cap(m.endereco), profissao: cap(m.profissao),
-          grupo: grupos.get(m.grupo_id)?.nome || "", outros: outros.join(", "), lider: m.eh_lider ? "Sim" : "Não",
-          batizado: m.batizado ? "Sim" : "Não", dataBat: data(m.data_batismo), porQuem: cap(m.pastor_batismo),
-          desde: data(m.created_at), acesso: data(m.ultimo_acesso), fotos: m.autoriza_fotos === false ? "Não" : m.autoriza_fotos ? "Sim" : "",
-          tipoGrupo: grupos.get(m.grupo_id)?.tipo,
-        };
-      });
-
+      const { linhas: todas, grupos } = dadosProntos || await carregarDados();
+      const linhas = filtrar ? filtrar.fn(todas) : todas, rotulo = filtrar && filtrar.rotulo ? ` · ${filtrar.rotulo}` : "";
       const wb = new ExcelJS.Workbook();
       wb.creator = "App Catedral Pão da Vida"; wb.created = new Date();
       const logo = await logoBase64();
@@ -89,7 +96,7 @@
         headerFooter: { oddFooter: `&L&8Catedral Pão da Vida · Rol de membros · ${hojeTxt}&R&8Página &P de &N` },
       });
       COLS.forEach(([, , w], i) => { ws.getColumn(i + 1).width = w; });
-      cabecalho(ws, "Rol de Membros", `${ig.nome || "Catedral Pão da Vida"} · Igreja do Evangelho Quadrangular · Pr. Ismair Soares e Pra. Débora Soares · ${linhas.length} membros`, N);
+      cabecalho(ws, "Rol de Membros", `${ig.nome || "Catedral Pão da Vida"} · Igreja do Evangelho Quadrangular · Pr. Ismair Soares e Pra. Débora Soares · ${linhas.length} membros${rotulo}`, N);
       ws.getRow(6).height = 10;
       const hr = ws.getRow(7); hr.height = 30;
       COLS.forEach(([t], i) => {
@@ -123,7 +130,7 @@
       /* ---- aba 2: resumo ---- */
       const rs = wb.addWorksheet("Resumo", { views: [{ showGridLines: false }], pageSetup: { orientation: "portrait", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
       [26, 14, 4, 26, 14, 4, 22, 14].forEach((w, i) => { rs.getColumn(i + 1).width = w; });
-      cabecalho(rs, "Resumo da membresia", `${ig.nome || "Catedral Pão da Vida"} · ${linhas.length} membros`, 8);
+      cabecalho(rs, "Resumo da membresia", `${ig.nome || "Catedral Pão da Vida"} · ${linhas.length} membros${rotulo}`, 8);
       const bloco = (col, linha0, titulo, pares) => {
         const h = rs.getCell(linha0, col); h.value = titulo; h.font = { name: "Calibri", size: 13, bold: true, color: { argb: TINTA } };
         rs.getCell(linha0 + 1, col).border = { top: { style: "medium", color: { argb: DOURADO } } }; rs.getCell(linha0 + 1, col + 1).border = { top: { style: "medium", color: { argb: DOURADO } } };
@@ -187,5 +194,181 @@
     } finally { if (btn) { btn.disabled = false; btn.innerHTML = txt; } }
   }
   window.gerarRolMembros = gerarRol;
-  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("#admin-card-rol"); if (b) gerarRol(b); });
+
+  /* ================= tela do rol ================= */
+  const $ = (q, r = document) => r.querySelector(q);
+  const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const R = { dados: null, busca: "", grupo: "", filtro: "", aberto: null };
+  const semAcento = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  function filtroAtual() {
+    const g = R.grupo && R.dados ? R.dados.grupos.get(R.grupo) : null;
+    const partes = [];
+    if (g) partes.push(g.nome);
+    if (R.filtro === "batizados") partes.push("batizados");
+    if (R.filtro === "nao") partes.push("ainda não batizados");
+    if (R.filtro === "lideres") partes.push("líderes");
+    if (R.busca.trim()) partes.push(`busca “${R.busca.trim()}”`);
+    const q = semAcento(R.busca.trim());
+    return {
+      rotulo: partes.join(" · "),
+      fn: lista => lista.filter(l =>
+        (!R.grupo || l.gids.has(R.grupo)) &&
+        (R.filtro !== "batizados" || l.batizado === "Sim") &&
+        (R.filtro !== "nao" || l.batizado !== "Sim") &&
+        (R.filtro !== "lideres" || l.lider === "Sim") &&
+        (!q || semAcento(`${l.nome} ${l.num} ${l.tel} ${l.email} ${l.grupo} ${l.outros}`).includes(q))),
+    };
+  }
+
+  async function abrirRol() {
+    let t = $("#tela-cpv-rol");
+    if (!t) {
+      t = document.createElement("div");
+      t.className = "screen cpv-layout"; t.id = "tela-cpv-rol";
+      t.innerHTML = `<div class="scroll">
+        <div class="cpv-topo-tela"><button type="button" class="cpv-voltar" data-cpv-voltar="tela-admin-painel" aria-label="Voltar"><svg class="ci" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <header class="cpv-saudacao"><p>Secretaria</p><h1>Rol de membros</h1></header></div>
+        <div class="rl-acoes">
+          <button type="button" class="cpv-btn ouro" data-rl-xlsx>Baixar Excel</button>
+          <button type="button" class="cpv-btn linha" data-rl-pdf>Baixar PDF</button>
+        </div>
+        <div class="rl-filtros">
+          <input type="search" class="rl-busca" placeholder="Buscar por nome, telefone ou nº" aria-label="Buscar membro" data-rl-busca>
+          <select class="rl-sel" data-rl-grupo aria-label="Filtrar por grupo ou departamento"></select>
+          <div class="rl-chips" role="group" aria-label="Filtro">
+            <button type="button" data-f="">Todos</button><button type="button" data-f="batizados">Batizados</button><button type="button" data-f="nao">Não batizados</button><button type="button" data-f="lideres">Líderes</button>
+          </div>
+        </div>
+        <div class="rl-resumo" data-rl-resumo></div>
+        <ul class="rl-lista" data-rl-lista><li class="rl-vazio">Carregando…</li></ul>
+        <p class="rl-nota">Os downloads levam só os membros que estão aparecendo, com os filtros escolhidos.</p>
+      </div>`;
+      ($("#tela-admin-painel") || document.body).after(t);
+      $("[data-rl-busca]", t).addEventListener("input", e => { R.busca = e.target.value; pintar(); });
+      $("[data-rl-grupo]", t).addEventListener("change", e => { R.grupo = e.target.value; pintar(); });
+      $(".rl-chips", t).addEventListener("click", e => { const b = e.target.closest("button"); if (b) { R.filtro = b.dataset.f; pintar(); } });
+      $("[data-rl-lista]", t).addEventListener("click", e => {
+        const li = e.target.closest("[data-rl-id]"); if (!li || e.target.closest("a")) return;
+        R.aberto = R.aberto === li.dataset.rlId ? null : li.dataset.rlId; pintar();
+      });
+      $("[data-rl-xlsx]", t).addEventListener("click", e => { if (R.dados) gerarRol(e.currentTarget, R.dados, filtroAtual()); });
+      $("[data-rl-pdf]", t).addEventListener("click", e => { if (R.dados) gerarPDF(e.currentTarget); });
+    }
+    window.mostrarTela("tela-cpv-rol");
+    R.dados = null; pintar();
+    try { R.dados = await carregarDados(); }
+    catch (e) { console.error(e); $("[data-rl-lista]").innerHTML = `<li class="rl-vazio">Não foi possível carregar os membros. Verifique a internet.</li>`; return; }
+    const sel = $("[data-rl-grupo]");
+    const gs = [...R.dados.grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
+    const op = tipo => gs.filter(g => (g.tipo === "departamento") === (tipo === "dep")).map(g => `<option value="${g.id}">${esc(g.nome)}</option>`).join("");
+    sel.innerHTML = `<option value="">Todos os grupos e departamentos</option><optgroup label="Grupos">${op("grupo")}</optgroup><optgroup label="Departamentos">${op("dep")}</optgroup>`;
+    sel.value = R.grupo;
+    pintar();
+  }
+  window.abrirRolMembros = abrirRol;
+
+  function pintar() {
+    const t = $("#tela-cpv-rol"); if (!t) return;
+    t.querySelectorAll(".rl-chips button").forEach(b => b.setAttribute("aria-pressed", b.dataset.f === R.filtro));
+    const ul = $("[data-rl-lista]", t), res = $("[data-rl-resumo]", t);
+    if (!R.dados) { ul.innerHTML = `<li class="rl-vazio">Carregando…</li>`; res.innerHTML = ""; return; }
+    const lista = filtroAtual().fn(R.dados.linhas);
+    const idades = lista.map(l => l.idade).filter(x => x != null);
+    const kpi = (n, r) => `<div><b>${n}</b><span>${r}</span></div>`;
+    res.innerHTML = kpi(lista.length, lista.length === 1 ? "membro" : "membros") + kpi(lista.filter(l => l.batizado === "Sim").length, "batizados") +
+      kpi(lista.filter(l => l.lider === "Sim").length, "líderes") + kpi(idades.length ? Math.round(idades.reduce((s, x) => s + x, 0) / idades.length) : "—", "idade média");
+    if (!lista.length) { ul.innerHTML = `<li class="rl-vazio">Nenhum membro com esses filtros.</li>`; return; }
+    const ini = n => esc((n || "?").trim().split(/\s+/).map(p => p[0]).slice(0, 2).join("").toUpperCase());
+    const zap = l => { const n = String(l.telBruto || "").replace(/\D/g, ""); return n.length >= 10 ? `https://wa.me/${n.length <= 11 ? "55" + n : n}` : ""; };
+    const campo = (r, v) => v ? `<div><span>${r}</span><b>${esc(v)}</b></div>` : "";
+    ul.innerHTML = lista.map(l => {
+      const aberto = R.aberto === l.id;
+      return `<li class="rl-item${aberto ? " aberto" : ""}" data-rl-id="${l.id}">
+        <button type="button" class="rl-cab" aria-expanded="${aberto}">
+          <span class="rl-av">${l.foto ? `<img src="${esc(l.foto)}" alt="" loading="lazy">` : ini(l.nome)}</span>
+          <span class="rl-tx"><b>${esc(l.nome)}</b><small>${esc(l.num)}${l.grupo ? " · " + esc(l.grupo) : ""}</small></span>
+          <span class="rl-tags">${l.lider === "Sim" ? `<i class="t-lider">Líder</i>` : ""}${l.batizado === "Sim" ? `<i class="t-bat">Batizado</i>` : ""}</span>
+        </button>
+        ${aberto ? `<div class="rl-det">
+          ${campo("Telefone", l.tel)}${campo("E-mail", l.email)}
+          ${campo("Nascimento", l.nasc ? dBR(l.nasc) + (l.idade != null ? ` · ${l.idade} anos` : "") : "")}
+          ${campo("Gênero", l.genero)}${campo("Estado civil", l.estado)}${campo("Profissão", l.profissao)}
+          ${campo("Endereço", l.endereco)}${campo("Também participa de", l.outros)}
+          ${campo("Batismo", l.batizado === "Sim" ? [l.dataBat ? dBR(l.dataBat) : "", l.porQuem ? "por " + l.porQuem : ""].filter(Boolean).join(" ") || "Sim" : "Ainda não")}
+          ${campo("Membro desde", l.desde ? dBR(l.desde) : "")}${campo("Último acesso ao app", l.acesso ? dBR(l.acesso) : "Nunca")}
+          ${zap(l) ? `<a class="rl-zap" href="${zap(l)}" target="_blank" rel="noopener">Conversar no WhatsApp</a>` : ""}
+        </div>` : ""}
+      </li>`;
+    }).join("");
+  }
+
+  /* ---------- PDF do rol ---------- */
+  async function gerarPDF(btn) {
+    const txt = btn.textContent; btn.disabled = true; btn.textContent = "Gerando PDF…";
+    try {
+      if (!window.jspdf) await carregarScript("vendor/jspdf.umd.min.js");
+      const f = filtroAtual(), lista = f.fn(R.dados.linhas), ig = state.igreja;
+      const { jsPDF } = window.jspdf, pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const W = 297, H = 210, M = 12, CW = W - 2 * M;
+      const NOITE = [20, 17, 14], OURO = [217, 164, 65], OURO_ESC = [176, 122, 30], TINTA = [42, 33, 25], SUAVE = [120, 108, 96], ZEBRA = [250, 245, 236], VERDE = [46, 125, 79];
+      const cor = (k, c) => k === "t" ? pdf.setTextColor(...c) : k === "f" ? pdf.setFillColor(...c) : pdf.setDrawColor(...c);
+      const fonte = (e, t) => { pdf.setFont("helvetica", e); pdf.setFontSize(t); };
+      const hoje = new Date(), hojeTxt = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}/${hoje.getFullYear()}`;
+      let logo = null;
+      try { const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = "assets/logo-branca.png"; }); const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0); logo = { url: c.toDataURL("image/png"), r: im.naturalWidth / im.naturalHeight }; } catch (e) {}
+      const sub = `${ig.nome || "Catedral Pão da Vida"} · ${lista.length} ${lista.length === 1 ? "membro" : "membros"}${f.rotulo ? " · " + f.rotulo : ""}`;
+      let y;
+      const cab = grande => {
+        const h = grande ? 34 : 18;
+        cor("f", NOITE); pdf.rect(0, 0, W, h, "F"); cor("f", OURO); pdf.rect(0, h, W, 1, "F");
+        if (logo) { const lh = grande ? 24 : 12; pdf.addImage(logo.url, "PNG", M, (h - lh) / 2, lh * logo.r, lh); }
+        const x0 = M + (grande ? 40 : 22);
+        if (grande) {
+          cor("t", OURO); fonte("bold", 8); pdf.text("CATEDRAL PÃO DA VIDA  ·  SECRETARIA", x0, 12);
+          cor("t", [243, 231, 211]); fonte("bold", 20); pdf.text("Rol de membros", x0, 21);
+          cor("t", [214, 200, 178]); fonte("normal", 9.5); pdf.text(sub, x0, 28);
+          cor("t", [160, 146, 128]); fonte("normal", 8); pdf.text(`Emitido em ${hojeTxt}`, W - M, 28, { align: "right" });
+        } else { cor("t", [243, 231, 211]); fonte("bold", 11); pdf.text("Rol de membros", x0, 10.5); cor("t", OURO); fonte("normal", 8); pdf.text(sub, x0, 14.8); }
+        return h + 8;
+      };
+      y = cab(true);
+      // resumo
+      const idades = lista.map(l => l.idade).filter(x => x != null);
+      const k = [["Membros", lista.length], ["Batizados", lista.filter(l => l.batizado === "Sim").length], ["Líderes", lista.filter(l => l.lider === "Sim").length], ["Idade média", idades.length ? Math.round(idades.reduce((s, x) => s + x, 0) / idades.length) : "—"]];
+      const kw = (CW - 3 * 4) / 4;
+      k.forEach(([r, v], i) => { const x = M + i * (kw + 4); cor("f", i ? [246, 238, 225] : NOITE); pdf.roundedRect(x, y, kw, 15, 2.5, 2.5, "F"); cor("t", i ? SUAVE : OURO); fonte("bold", 7.5); pdf.text(r.toUpperCase(), x + 4, y + 6); cor("t", i ? TINTA : [241, 207, 134]); fonte("bold", 13); pdf.text(String(v), x + 4, y + 12.5); });
+      y += 23;
+      // tabela
+      const C = [["Nº", 20], ["Nome", 62], ["Nascimento", 30], ["Estado civil", 23], ["Telefone", 30], ["Grupo / departamento", 42], ["Líder", 12], ["Batismo", 31], ["Membro desde", 23]];
+      const xs = []; C.reduce((x, [, w]) => { xs.push(x); return x + w; }, M);
+      const corta = (t, w) => { const s = String(t || "—"); return pdf.splitTextToSize(s, w - 3)[0] + (pdf.splitTextToSize(s, w - 3).length > 1 ? "…" : ""); };
+      const thead = () => { cor("f", NOITE); pdf.roundedRect(M, y - 4.6, CW, 7.6, 1.5, 1.5, "F"); cor("t", [241, 207, 134]); fonte("bold", 7.8); C.forEach(([t], i) => pdf.text(t, xs[i] + 2, y)); y += 6.2; };
+      thead();
+      lista.forEach((l, i) => {
+        if (y + 6.5 > H - 14) { pdf.addPage(); y = cab(false); thead(); }
+        if (i % 2 === 0) { cor("f", ZEBRA); pdf.rect(M, y - 4.3, CW, 6.6, "F"); }
+        const vals = [l.num, l.nome, l.nasc ? dBR(l.nasc) + (l.idade != null ? ` (${l.idade})` : "") : "—", l.estado || "—", l.tel || "—", [l.grupo, l.outros].filter(Boolean).join(", ") || "—", l.lider === "Sim" ? "Sim" : "—", l.batizado === "Sim" ? (l.dataBat ? dBR(l.dataBat) : "Sim") : "Ainda não", l.desde ? dBR(l.desde) : "—"];
+        vals.forEach((v, j) => {
+          fonte(j === 1 ? "bold" : "normal", j === 1 ? 8.4 : 8);
+          cor("t", j === 0 ? SUAVE : j === 6 && v === "Sim" ? OURO_ESC : j === 7 && l.batizado === "Sim" ? VERDE : TINTA);
+          pdf.text(corta(v, C[j][1]), xs[j] + 2, y);
+        });
+        y += 6.6;
+      });
+      const tp = pdf.getNumberOfPages();
+      for (let p = 1; p <= tp; p++) {
+        pdf.setPage(p); cor("d", [228, 218, 202]); pdf.setLineWidth(.3); pdf.line(M, H - 9, W - M, H - 9);
+        cor("t", SUAVE); fonte("normal", 7); pdf.text(`Catedral Pão da Vida · Rol de membros · ${hojeTxt} · documento interno da secretaria`, M, H - 5); pdf.text(`${p} / ${tp}`, W - M, H - 5, { align: "right" });
+      }
+      const blob = pdf.output("blob"), nome = `rol-de-membros-catedral-${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}.pdf`;
+      if (window.cpvEntregarArquivo) await window.cpvEntregarArquivo(blob, nome, "application/pdf");
+      else { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); }
+    } catch (e) {
+      console.error("PDF do rol:", e);
+      typeof mostrarToast === "function" && mostrarToast("Não foi possível gerar o PDF. Tente de novo.");
+    } finally { btn.disabled = false; btn.textContent = txt; }
+  }
+
+  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("#admin-card-rol"); if (b) abrirRol(); });
 })();
