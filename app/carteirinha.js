@@ -174,9 +174,9 @@
     const ehImg = tipo.startsWith("image/"), ehPdf = tipo === "application/pdf";
     const f = document.createElement("div"); f.className = "ct-pronto"; f.setAttribute("role", "dialog"); f.setAttribute("aria-modal", "true");
     f.innerHTML = `<div class="ct-pronto-c">
-        <b>${ehImg ? "Sua carteirinha está pronta" : /^frequencia/.test(nome) ? (ehPdf ? "Relatório pronto" : "Planilha pronta") : "PDF da carteirinha pronto"}</b>
+        <b>${ehImg ? "Sua carteirinha está pronta" : /^carteirinha/.test(nome) ? "PDF da carteirinha pronto" : ehPdf ? "Relatório pronto" : "Planilha pronta"}</b>
         ${ehImg ? `<img src="${url}" alt="Carteirinha"><small>Toque em Salvar e escolha “Salvar imagem”. Se preferir, toque e segure a imagem.</small>`
-                : `<div class="ct-pronto-pdf">${ehPdf ? "PDF" : "CSV"}</div><small>Toque em Salvar e escolha “Salvar em Arquivos” ou mande pelo WhatsApp.</small>`}
+                : `<div class="ct-pronto-pdf">${(nome.split(".").pop() || "").toUpperCase()}</div><small>Toque em Salvar e escolha “Salvar em Arquivos” ou mande pelo WhatsApp.</small>`}
         <button type="button" class="cpv-btn ouro" data-ct-salvar>Salvar</button>
         ${ehPdf ? `<a class="cpv-btn linha" href="${url}" target="_blank" rel="noopener">Abrir o PDF</a>` : ""}
         <button type="button" class="ct-pronto-x" data-ct-fechar>Fechar</button>
