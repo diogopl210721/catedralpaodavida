@@ -37,8 +37,8 @@
     const base = new Date(hoje + "T12:00:00");
     const ig = state.igreja.id, dia = DIAS[base.getDay()];
     const [cu, ca, ev, av, re] = await Promise.all([
-      sb.from("igr_cultos").select("id,titulo,dia_semana,horario,local,data,data_inicio,data_fim").eq("igreja_id", ig),
-      sb.from("igr_calendario_eventos").select("id,titulo,data,data_fim,horario,local,grupo_id,culto_id,evento_id,aviso_id").eq("igreja_id", ig).lte("data", hoje).gte("data", iso(new Date(+base - 20 * 864e5))),
+      sb.from("igr_cultos").select("id,titulo,dia_semana,semana_do_mes,horario,local,data,data_inicio,data_fim").eq("igreja_id", ig),
+      sb.from("igr_calendario_eventos").select("id,titulo,data,data_fim,dia_semana,semana_do_mes,horario,local,grupo_id,culto_id,evento_id,aviso_id").eq("igreja_id", ig).lte("data", hoje).or(`data.gte.${iso(new Date(+base - 20 * 864e5))},dia_semana.not.is.null`),
       sb.from("igr_eventos").select("id,titulo,data,data_fim,horario,local").eq("igreja_id", ig).lte("data", hoje).gte("data", iso(new Date(+base - 20 * 864e5))),
       sb.from("igr_avisos").select("id,titulo,data_evento,horario_evento,local_evento,grupo_id").eq("igreja_id", ig).eq("data_evento", hoje),
       sb.from("igr_reunioes").select("id,titulo,tipo,data,horario,local,grupo_id").eq("igreja_id", ig).eq("data", hoje),
@@ -46,11 +46,12 @@
     const L = [], visto = new Set();
     const add = o => { if (visto.has(o.chave)) return; visto.add(o.chave); L.push(o); };
     (cu.data || []).forEach(c => {
-      const vale = c.data ? c.data === hoje : c.dia_semana === dia && (!c.data_inicio || c.data_inicio <= hoje) && (!c.data_fim || c.data_fim >= hoje);
+      const vale = c.data ? c.data === hoje : c.dia_semana === dia && (typeof semanaDoMesBate !== "function" || semanaDoMesBate(hoje, c.semana_do_mes)) && (!c.data_inicio || c.data_inicio <= hoje) && (!c.data_fim || c.data_fim >= hoje);
       if (vale) add({ tipo: "culto", id: c.id, chave: `culto:${c.id}:${hoje}`, titulo: c.titulo, horario: c.horario, local: c.local });
     });
     const dentro = r => r.data <= hoje && (r.data_fim || r.data) >= hoje;
-    (ca.data || []).filter(dentro).forEach(c => {
+    const calVale = r => r.dia_semana ? r.data <= hoje && (!r.data_fim || r.data_fim >= hoje) && (typeof diaBateComSemana !== "function" || diaBateComSemana(hoje, r.dia_semana, r.semana_do_mes)) : dentro(r);
+    (ca.data || []).filter(calVale).forEach(c => {
       if (c.culto_id && L.some(x => x.id === c.culto_id)) return;
       add({ tipo: "calendario", id: c.id, chave: `cal:${c.id}:${hoje}`, titulo: c.titulo, horario: c.horario, local: c.local, grupo_id: c.grupo_id, liga: [c.evento_id, c.aviso_id] });
     });

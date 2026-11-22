@@ -122,7 +122,7 @@
           if (c.data) { if (c.data === s) out.push({ data: s, horario: c.horario, titulo: c.titulo }); return; }
           if (c.data_inicio && s < c.data_inicio) return;
           if (c.data_fim && s > c.data_fim) return;
-          if (c.dia_semana === DIAS[d.getDay()]) {
+          if (c.dia_semana === DIAS[d.getDay()] && (typeof semanaDoMesBate !== "function" || semanaDoMesBate(s, c.semana_do_mes))) {
             const t = c.dia_semana === "domingo" && typeof temaDoDomingo === "function" ? temaDoDomingo(s) : null;
             out.push({ data: s, horario: c.horario, titulo: c.titulo + (t ? ` · ${t.tema}` : "") });
           }

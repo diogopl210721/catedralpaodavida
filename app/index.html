@@ -391,7 +391,18 @@
               <option value="sabado">Sábado</option>
             </select>
           </div>
-          <p class="hint" style="margin:-4px 0 12px;">Ex: campanha todo domingo, de 06/09 a 20/12 — preencha início/fim e escolha "Domingo".</p>
+          <div class="field campo-semana-mes" data-semana-de="adm-cal-dia-semana" style="display:none;">
+            <label>Repetir</label>
+            <select id="adm-cal-semana-mes">
+              <option value="">Toda semana</option>
+              <option value="1">Só no 1º do mês</option>
+              <option value="2">Só no 2º do mês</option>
+              <option value="3">Só no 3º do mês</option>
+              <option value="4">Só no 4º do mês</option>
+              <option value="5">Só no último do mês</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:-4px 0 12px;">Ex: campanha todo domingo, de 06/09 a 20/12 — preencha início/fim e escolha "Domingo". Para algo mensal, como a Santa Ceia todo 1º domingo, escolha "Domingo" e em Repetir "Só no 1º do mês", deixando a data final em branco.</p>
           <div class="field"><label>Horário (opcional)</label><input id="adm-cal-horario" placeholder="Ex: 19h30"></div>
           <div class="field"><label>Descrição (opcional)</label><input id="adm-cal-observacoes" placeholder="Detalhes do evento, culto, etc."></div>
           <div class="field" style="margin-bottom:6px;"><label>Banner/imagem (opcional)</label><input id="adm-cal-imagem" type="file" accept="image/*"></div>
@@ -664,6 +675,17 @@
                 <option value="sabado">Sábado</option>
               </select>
             </div>
+          <div class="field campo-semana-mes" data-semana-de="ac-dia" style="display:none;">
+            <label>Repetir</label>
+            <select id="ac-semana-mes">
+              <option value="">Toda semana</option>
+              <option value="1">Só no 1º do mês</option>
+              <option value="2">Só no 2º do mês</option>
+              <option value="3">Só no 3º do mês</option>
+              <option value="4">Só no 4º do mês</option>
+              <option value="5">Só no último do mês</option>
+            </select>
+          </div>
             <div class="field"><label>Horário</label><input id="ac-horario" required placeholder="Ex: 18:00"></div>
             <div class="field"><label>Data específica (opcional — só pra culto especial, não recorrente)</label><input id="ac-data" type="date"></div>
             <p class="hint" style="margin:-4px 0 12px;">Deixe em branco se for um culto normal, que se repete toda semana nesse dia.</p>
@@ -1742,7 +1764,18 @@
               <option value="sabado">Sábado</option>
             </select>
           </div>
-          <p class="hint" style="margin:-4px 0 12px;">Ex: campanha todo domingo, de 06/09 a 20/12 — preencha início/fim e escolha "Domingo".</p>
+          <div class="field campo-semana-mes" data-semana-de="cal-dia-semana" style="display:none;">
+            <label>Repetir</label>
+            <select id="cal-semana-mes">
+              <option value="">Toda semana</option>
+              <option value="1">Só no 1º do mês</option>
+              <option value="2">Só no 2º do mês</option>
+              <option value="3">Só no 3º do mês</option>
+              <option value="4">Só no 4º do mês</option>
+              <option value="5">Só no último do mês</option>
+            </select>
+          </div>
+          <p class="hint" style="margin:-4px 0 12px;">Ex: campanha todo domingo, de 06/09 a 20/12 — preencha início/fim e escolha "Domingo". Para algo mensal, como a Santa Ceia todo 1º domingo, escolha "Domingo" e em Repetir "Só no 1º do mês", deixando a data final em branco.</p>
           <div class="field"><label>Horário (opcional)</label><input id="cal-horario" placeholder="Ex: 19h30"></div>
           <div class="field"><label>Descrição (opcional)</label><input id="cal-observacoes" placeholder="Detalhes do evento, culto, etc."></div>
           <div class="field" style="margin-bottom:6px;"><label>Banner/imagem (opcional)</label><input id="cal-imagem" type="file" accept="image/*"></div>
@@ -2434,16 +2467,16 @@
 <script src="config.js?v=4"></script>
 <script>window.APP_VERSION = "1792665950";</script>
 <script src="motion.js?v=1792665941"></script>
-<script src="app.js?v=1795234037"></script>
+<script src="app.js?v=1795363743"></script>
 <script src="v7.js?v=1792665941"></script>
 <script src="assets/gsap.min.js?v=1792665941"></script>
 <script src="v8.js?v=1795264136"></script>
 <script src="v9.js?v=1792665941"></script>
 <script src="v11.js?v=1792665941"></script>
 <script src="catedral.js?v=17"></script>
-<script src="catedral-modulos.js?v=7"></script>
+<script src="catedral-modulos.js?v=8"></script>
 <script src="carteirinha.js?v=6"></script>
-<script src="presenca.js?v=4"></script>
+<script src="presenca.js?v=5"></script>
 <script src="rol.js?v=3"></script>
 <script src="stories.js?v=1792665941"></script>
 </body>
