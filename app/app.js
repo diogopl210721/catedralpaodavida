@@ -924,6 +924,7 @@ async function abrirAvisoDetalhe(avisoId, voltarPara) {
         <button class="btn btn-ghost" id="ad-nao-vou" style="width:auto;padding:6px 12px;font-size:12px;flex:none;${minhaPresenca === "nao_vou" ? "background:var(--brand-soft);color:var(--brand);" : ""}">❌ Não vou</button>
         <button class="btn btn-ghost" id="ad-talvez" style="width:auto;padding:6px 12px;font-size:12px;flex:none;${minhaPresenca === "talvez" ? "background:var(--brand-soft);color:var(--brand);" : ""}">🤔 Talvez</button>
       </div>` : ""}
+      ${window.cpvGerirBotoes ? window.cpvGerirBotoes("aviso", a) : ""}
     </div>
   `;
 
@@ -4406,6 +4407,7 @@ function abrirDiaCalendario(dataISO) {
   document.getElementById("calendario-view-mes").style.display = "none";
   document.getElementById("calendario-view-dia").style.display = "block";
   document.getElementById("cal-dia-titulo").textContent = formatarData(dataISO);
+  document.getElementById("cal-dia-titulo").dataset.iso = dataISO;
 
   const eventosDoDia = (state.calendarioEventos || []).filter(ev => {
     const semLimiteSuperior = !ev.data_fim && ev.dia_semana; // recorrente sem data de encerramento definida = vale pra sempre
@@ -4431,6 +4433,7 @@ function abrirDiaCalendario(dataISO) {
         <button class="btn btn-ghost" data-add-agenda-calendario="${ev.id}">📲 Adicionar na minha agenda</button>
         <button class="btn btn-ghost" data-compartilhar-calendario="${ev.id}">📤 Compartilhar</button>
       </div>
+      ${window.cpvGerirBotoes ? window.cpvGerirBotoes("cal", ev) : ""}
     </div>
   `).join("") || `<div class="empty">Nada marcado pra esse dia.</div>`;
 
@@ -4594,6 +4597,7 @@ async function enviarCalendarioAdmin() {
   btn.disabled = false; btn.textContent = "Publicar e notificar todo mundo";
   if (error) { alert("Não deu pra publicar: " + error.message); return; }
 
+  window.carregarCalendarioAdminLista && window.carregarCalendarioAdminLista();
   document.getElementById("adm-cal-titulo").value = "";
   document.getElementById("adm-cal-tipo").value = "";
   document.getElementById("adm-cal-local").value = "";
@@ -7515,6 +7519,7 @@ function abrirSecaoAdmin(secao) {
     oracao: () => carregarOracaoAdmin("todos"),
     eventos: carregarEventosAdmin,
     livros: carregarLivrosAdmin,
+    calendario: () => window.carregarCalendarioAdminLista && window.carregarCalendarioAdminLista(),
   };
   cargas[secao]?.();
 }
