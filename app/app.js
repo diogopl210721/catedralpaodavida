@@ -284,12 +284,18 @@ function configurarEditorFoto() {
   document.getElementById("foto-editor-salvar").addEventListener("click", salvarEditorFoto);
 }
 
+// Toda imagem enviada é reduzida antes de subir (máx. 1600 px): o app fica leve e não estoura a cota do banco.
+const LADO_MAX_IMAGEM = 1600, QUALIDADE_IMAGEM = 0.78;
 async function uploadArquivo(file, pasta) {
   if (!file) return null;
   try {
-    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    if (/^image\/(jpe?g|png|webp|heic|heif)$/i.test(file.type || "") && file.size > 250 * 1024) {
+      const menor = await reduzirImagem(file, LADO_MAX_IMAGEM, QUALIDADE_IMAGEM);
+      if (menor && menor.size < file.size) file = menor;
+    }
+    const ext = (file.type === "image/jpeg" ? "jpg" : (file.name.split(".").pop() || "bin")).toLowerCase();
     const path = `${pasta}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await sb.storage.from("igreja-arquivos").upload(path, file);
+    const { error } = await sb.storage.from("igreja-arquivos").upload(path, file, { cacheControl: "31536000" });
     if (error) { console.error("Erro no upload:", error); return null; }
     const { data } = sb.storage.from("igreja-arquivos").getPublicUrl(path);
     return data?.publicUrl || null;
@@ -8370,12 +8376,15 @@ async function enviarFotosAlbum() {
     let primeiraUrl = null;
     for (const arquivo of arquivos) {
       progresso.textContent = `Enviando foto ${enviadas + 1} de ${arquivos.length}...`;
-      const comMarca = await aplicarMarcaDagua(arquivo, logoUrl);
+      // reduz primeiro (1600 px), depois aplica a marca d'água: uma versão só + miniatura
+      const reduzida = (await reduzirImagem(arquivo, LADO_MAX_IMAGEM, QUALIDADE_IMAGEM)) || arquivo;
+      const comMarca = await aplicarMarcaDagua(reduzida, logoUrl);
       const url = await uploadArquivo(comMarca, "fotos/" + albumId);
       if (url) {
-        const leves = await enviarVersoesLeves(comMarca, "fotos/" + albumId);
-        await sb.from("igr_fotos").insert({ album_id: albumId, url, ...leves });
-        if (!primeiraUrl) primeiraUrl = leves.url_media || url;
+        const mini = await reduzirImagem(comMarca, 400, 0.68);
+        const url_mini = mini ? await uploadArquivo(mini, "fotos/" + albumId) : null;
+        await sb.from("igr_fotos").insert({ album_id: albumId, url, url_media: url, url_mini, reduzida: true });
+        if (!primeiraUrl) primeiraUrl = url;
         enviadas++;
       }
     }
@@ -8399,28 +8408,23 @@ async function enviarFotosAlbum() {
 // fotos enviadas antes das versões leves: gera miniatura e média uma única vez
 async function otimizarFotosAntigas() {
   const btn = document.getElementById("btn-otimizar-fotos"), info = document.getElementById("af-otimizar-info");
-  const { data: albuns } = await sb.from("igr_fotos_albuns").select("id, capa_url").eq("igreja_id", state.igreja.id);
-  const ids = (albuns || []).map(a => a.id);
-  if (!ids.length) { info.textContent = "Nenhum álbum ainda."; return; }
-  const { data: fotos } = await sb.from("igr_fotos").select("id, url, album_id").in("album_id", ids).is("url_mini", null);
-  if (!fotos || !fotos.length) { info.textContent = "Todas as fotos já estão leves. ✓"; return; }
   btn.disabled = true;
-  let ok = 0;
-  for (const f of fotos) {
-    info.textContent = `Deixando leve: foto ${ok + 1} de ${fotos.length}… (mantenha esta tela aberta)`;
-    try {
-      const resp = await fetch(f.url); if (!resp.ok) continue;
-      const blob = await resp.blob();
-      const leves = await enviarVersoesLeves(new File([blob], "foto.jpg", { type: blob.type || "image/jpeg" }), "fotos/" + f.album_id);
-      if (!leves.url_mini) continue;
-      await sb.from("igr_fotos").update(leves).eq("id", f.id);
-      const alb = albuns.find(a => a.id === f.album_id && a.capa_url === f.url);
-      if (alb && leves.url_media) { await sb.from("igr_fotos_albuns").update({ capa_url: leves.url_media }).eq("id", alb.id); alb.capa_url = leves.url_media; }
-      ok++;
-    } catch (e) { console.error("otimizar foto:", e); }
+  let total = 0, semAvanco = 0;
+  try {
+    while (true) {
+      info.textContent = `Reduzindo fotos… ${total} prontas até agora (pode fechar o app, depois é só tocar de novo para continuar).`;
+      const { data, error } = await sb.functions.invoke("igr-reduzir-fotos", { body: { lote: 12 } });
+      if (error) throw error;
+      total += data.feitas || 0;
+      if (!data.restantes) { info.textContent = `Pronto! ${total} fotos reduzidas. ✓`; break; }
+      semAvanco = data.feitas ? 0 : semAvanco + 1;
+      if (semAvanco >= 2) { info.textContent = `${total} fotos reduzidas; ${data.restantes} não puderam ser reduzidas agora. Tente mais tarde.`; console.warn(data.erros); break; }
+    }
+  } catch (e) {
+    console.error("reduzir fotos:", e);
+    info.textContent = `Parou depois de ${total} fotos. Toque de novo para continuar.`;
   }
   btn.disabled = false;
-  info.textContent = `${ok} de ${fotos.length} fotos ficaram leves. O original continua disponível para baixar. ✓`;
 }
 
 // ---------- admin: dados da igreja (endereço/redes) ----------
